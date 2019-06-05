@@ -415,7 +415,7 @@ class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
                 prefix_ext_region.b = point
                 prefix_ext = view.substr(prefix_ext_region)
 
-                if re.match(CITATION_RE, prefix_ext)
+                if re.match(CITATION_RE, prefix_ext):
                     searcher = CiterSearchCommand(view)
                     searcher.run_keyonly(None)
             else:
