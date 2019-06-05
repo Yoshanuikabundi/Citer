@@ -289,7 +289,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
     def run(self, edit):
         refresh_settings()
         self.view.window().show_input_panel(
-            "Cite search", "", self.search_keyword, None, None)
+            "Yoshanuikabundi Cite search", "", self.search_keyword, None, None)
 
     def is_enabled(self):
         """Determines if the command is enabled
