@@ -37,6 +37,9 @@ EXCLUDED_SCOPES = None
 PANDOC_FIX = None
 EXCLUDE = None
 
+SEARCH_COMPLETIONS = None
+CITATION_RE = None
+
 # Internal Cache globals
 _PAPERS = {}
 _YAMLBIB_PATH = None
@@ -149,6 +152,9 @@ def refresh_settings():
     global PANDOC_FIX
     global QUICKVIEW_FORMAT
 
+    global CITATION_RE
+    global SEARCH_COMPLETIONS
+
     def get_settings(setting, default):
         project_data = sublime.active_window().project_data()
         if project_data and setting in project_data:
@@ -167,6 +173,9 @@ def refresh_settings():
     QUICKVIEW_FORMAT = get_settings('quickview_format', '{citekey} - {title}')
     PANDOC_FIX = get_settings('auto_merge_citations', False)
     EXCLUDE = get_settings('hide_other_completions', True)
+
+    SEARCH_COMPLETIONS = get_settings('use_search_for_completions', False)
+    CITATION_RE = get_settings('citation_regex', r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')
 
 
 def refresh_caches():
@@ -393,38 +402,34 @@ class CiterGetTitleCommand(sublime_plugin.TextCommand):
 class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
 
     """docstring for CiterCompleteCitationEventListener"""
-    citation_re = re.compile(r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')
 
 
     def on_query_completions(self, view, prefix, loc):
-
         in_scope = any(view.match_selector(loc[0], scope) for scope in COMPLETIONS_SCOPES)
         ex_scope = any(view.match_selector(loc[0], scope) for scope in EXCLUDED_SCOPES)
 
+        if ENABLE_COMPLETIONS and in_scope and not ex_scope:
+            if SEARCH_COMPLETIONS:
+                point = loc[0]
+                prefix_ext_region = view.line(point)
+                prefix_ext_region.b = point
+                prefix_ext = view.substr(prefix_ext_region)
 
-        point = loc[0]
-        prefix_ext_region = view.line(point)
-        prefix_ext_region.b = point
-        prefix_ext = view.substr(prefix_ext_region)
+                if re.match(CITATION_RE, prefix_ext)
+                    searcher = CiterSearchCommand(view)
+                    searcher.run_keyonly(None)
+            else:
+                load_yamlbib_path(view)
 
-        match = self.citation_re.match(prefix_ext)
+                search = prefix.replace('@', '').lower()
 
-        print('match:', match)
-        print('prefix_ext:', prefix_ext)
+                results = [[key, key] for key in citekeys_list() if search in key.lower()]
 
-        if ENABLE_COMPLETIONS and in_scope and not ex_scope and match:
-            load_yamlbib_path(view)
+                if EXCLUDE and len(results) > 0:
+                    return (results, sublime.INHIBIT_WORD_COMPLETIONS)
+                else:
+                    return results
 
-            searcher = CiterSearchCommand(view)
-            searcher.run_keyonly(None)
-            # search = prefix.replace('@', '').lower()
-
-            # results = [[key, key] for key in citekeys_list() if search in key.lower()]
-
-            # if EXCLUDE and len(results) > 0:
-            #     return (results, sublime.INHIBIT_WORD_COMPLETIONS)
-            # else:
-            #     return results
 
 
 class CiterCombineCitationsCommand(sublime_plugin.TextCommand):
