@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import, division
 import sublime
 import sublime_plugin
 
+from pathlib import Path
 import sys
 import os.path
 import string, re
@@ -155,15 +156,20 @@ def refresh_settings():
     global CITATION_RE
     global SEARCH_COMPLETIONS
 
-    def get_settings(setting, default):
+    def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
         if project_data and setting in project_data:
-            return project_data[setting]
+            if is_path:
+                project_folder = Path(sublime.active_window().project_file_name()).parent
+                out = Path(project_data[setting])
+                return str(project_folder / out)
+            else:
+                return project_data[setting]
         else:
             return settings.get(setting, default)
 
     settings = sublime.load_settings('Citer.sublime-settings')
-    BIBFILE_PATH = get_settings('bibtex_file_path', None)
+    BIBFILE_PATH = get_settings('bibtex_file_path', None, is_path=True)
     SEARCH_IN = get_settings('search_fields', ["author", "title", "year", "id"])
     CITATION_FORMAT = get_settings('citation_format', "@%s")
     COMPLETIONS_SCOPES = get_settings('completions_scopes', ['text.html.markdown'])
