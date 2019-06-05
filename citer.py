@@ -269,27 +269,43 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     """
     """
-    current_results_list = []
+    current_results_list_txt = []
+    current_results_list_keys = []
 
-    def search_keyword(self, search_term):
+    def search_keyword(self):
+        search_term = ""
         results = {}
         for doc in documents():
             for section_name in SEARCH_IN:
                 section_text = doc.get(section_name)
                 if section_text and search_term.lower() in section_text.lower():
                     txt = QUICKVIEW_FORMAT.format(
-                        citekey=doc.get('id'), title=doc.get('title'))
+                        citekey=doc.get('id'),
+                        title=doc.get('title'),
+                        author=doc.get('author'),
+                        year=doc.get('year'),
+                        journal=doc.get('journal')
+                    ).splitlines()
                     # ensure we never have duplicates
                     results[doc.get('id')] = txt
 
-        self.current_results_list = list(results.values())
+        self.current_results_list_txt = []
+        self.current_results_list_keys = []
+        for k, v in results.items():
+            self.current_results_list_keys.append(k)
+            self.current_results_list_txt.append(v)
         self.view.window().show_quick_panel(
-            self.current_results_list, self._paste)
+            self.current_results_list_txt, self._paste)
 
     def run(self, edit):
         refresh_settings()
-        self.view.window().show_input_panel(
-            "Yoshanuikabundi Cite search", "", self.search_keyword, None, None)
+        self.search_keyword()
+
+    def run_keyonly(self, edit):
+        refresh_settings()
+        global CITATION_FORMAT
+        CITATION_FORMAT = '%s'
+        self.search_keyword()
 
     def is_enabled(self):
         """Determines if the command is enabled
@@ -302,8 +318,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         if item == -1:
             return
-        ent = self.current_results_list[item]
-        ent = ent.split(' ')[0]
+        ent = self.current_results_list_keys[item]
         citekey = CITATION_FORMAT % ent
         if PANDOC_FIX:
             self.view.run_command('insert', {'characters': citekey})
@@ -378,23 +393,38 @@ class CiterGetTitleCommand(sublime_plugin.TextCommand):
 class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
 
     """docstring for CiterCompleteCitationEventListener"""
+    citation_re = re.compile(r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')
+
 
     def on_query_completions(self, view, prefix, loc):
 
         in_scope = any(view.match_selector(loc[0], scope) for scope in COMPLETIONS_SCOPES)
         ex_scope = any(view.match_selector(loc[0], scope) for scope in EXCLUDED_SCOPES)
 
-        if ENABLE_COMPLETIONS and in_scope and not ex_scope:
+
+        point = loc[0]
+        prefix_ext_region = view.line(point)
+        prefix_ext_region.b = point
+        prefix_ext = view.substr(prefix_ext_region)
+
+        match = self.citation_re.match(prefix_ext)
+
+        print('match:', match)
+        print('prefix_ext:', prefix_ext)
+
+        if ENABLE_COMPLETIONS and in_scope and not ex_scope and match:
             load_yamlbib_path(view)
 
-            search = prefix.replace('@', '').lower()
+            searcher = CiterSearchCommand(view)
+            searcher.run_keyonly(None)
+            # search = prefix.replace('@', '').lower()
 
-            results = [[key, key] for key in citekeys_list() if search in key.lower()]
+            # results = [[key, key] for key in citekeys_list() if search in key.lower()]
 
-            if EXCLUDE and len(results) > 0:
-                return (results, sublime.INHIBIT_WORD_COMPLETIONS)
-            else:
-                return results
+            # if EXCLUDE and len(results) > 0:
+            #     return (results, sublime.INHIBIT_WORD_COMPLETIONS)
+            # else:
+            #     return results
 
 
 class CiterCombineCitationsCommand(sublime_plugin.TextCommand):
