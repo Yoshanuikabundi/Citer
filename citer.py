@@ -158,13 +158,14 @@ def refresh_settings():
 
     def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
-        if project_data and setting in project_data:
+        project_citer_settings = project_data['settings']['citer']
+        if project_data and setting in project_citer_settings:
             if is_path:
                 project_folder = Path(sublime.active_window().project_file_name()).parent
-                out = Path(project_data[setting])
+                out = Path(project_citer_settings[setting])
                 return str(project_folder / out)
             else:
-                return project_data[setting]
+                return project_citer_settings[setting]
         else:
             return settings.get(setting, default)
 
