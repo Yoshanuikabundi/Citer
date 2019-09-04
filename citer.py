@@ -25,6 +25,11 @@ if os.path.dirname(__file__) not in sys.path:
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.customization import convert_to_unicode
 
+try:
+    import habanero
+    HABANERO_AVAILABLE = True
+except:
+    HABANERO_AVAILABLE = False
 
 # settings cache globals
 BIBFILE_PATH = None
@@ -40,6 +45,9 @@ EXCLUDE = None
 
 SEARCH_COMPLETIONS = None
 CITATION_RE = None
+
+CROSSREF_MAILTO = None
+OUTPUT_BIBFILE_PATH = None
 
 # Internal Cache globals
 _PAPERS = {}
@@ -73,6 +81,30 @@ def load_yamlbib_path(view):
 
     _YAMLBIB_PATH = _PAPERS[filename].bibpath()
 
+def strip_latex(s):
+    try:
+        return s.translate(str.maketrans('','','{}'))
+    except:
+        return s
+
+
+def write_bibtex(filename, item):
+    """Write a item from the crossref API to a bib file"""
+    # # Compose the database entry
+    # bibtex_entry =
+
+    # # Read the output file
+    # with open(filename, 'r') as bibtex_file:
+    #     bibtex_database = bibtexparser.load(bibtex_file)
+
+    # # Append the new entry
+    # bibtex_database.entries
+
+    # # Write the output file
+    # with open(filename, 'w') as bibtex_file:
+    #     bibtexparser.dump(bibtex_database, bibtex_file)
+
+    refresh_caches()
 
 class Paper:
 
@@ -156,6 +188,9 @@ def refresh_settings():
     global CITATION_RE
     global SEARCH_COMPLETIONS
 
+    global CROSSREF_MAILTO
+    global OUTPUT_BIBFILE_PATH
+
     def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
         project_citer_settings = project_data['settings']['citer']
@@ -183,6 +218,9 @@ def refresh_settings():
 
     SEARCH_COMPLETIONS = get_settings('use_search_for_completions', False)
     CITATION_RE = get_settings('citation_regex', r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')
+
+    CROSSREF_MAILTO = get_settings('crossref_mailto', None)
+    OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)
 
 
 def refresh_caches():
@@ -250,14 +288,16 @@ def _make_citekey_menu_list(bibdocs):
             auths = _parse_authors(doc.get('author'))
         else:
             auths = 'Anon'
-        title = string.Formatter().vformat(QUICKVIEW_FORMAT, (),
-                                           SafeDict(
-                                                    citekey=doc.get('id'),
-                                                    title=doc.get('title'),
-                                                    author=auths,
-                                                    year=doc.get('year')
-                                                    )
-                                           )
+        title = string.Formatter().vformat(
+            QUICKVIEW_FORMAT,
+            (),
+            SafeDict(
+                 citekey=doc.get('id'),
+                 title=doc.get('title'),
+                 author=auths,
+                 year=doc.get('year')
+                 )
+            )
         # title = QUICKVIEW_FORMAT.format(
         #     citekey=doc.get('id'), title=doc.get('title'))
         menu_entry.append(title)
@@ -285,62 +325,156 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     """
     """
-    current_results_list_txt = []
-    current_results_list_keys = []
 
-    def search_keyword(self):
-        search_term = ""
-        results = {}
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.current_results_txt = []
+        self.current_results_keys = []
+        if HABANERO_AVAILABLE:
+            self.crossref = habanero.Crossref(mailto=CROSSREF_MAILTO)
+
+    def search_bibtex(self):
+        if HABANERO_AVAILABLE:
+            self.current_results_txt = [
+                [
+                    "Search CrossRef",
+                    "Insert a reference from the crossref database"
+                ]
+            ]
+            self.current_results_keys = ["&crossref"]
+        else:
+            self.current_results_txt = []
+            self.current_results_keys = []
+
+        # Generate all the results to search
         for doc in documents():
-            for section_name in SEARCH_IN:
-                section_text = doc.get(section_name)
-                if section_text and search_term.lower() in section_text.lower():
-                    txt = QUICKVIEW_FORMAT.format(
-                        citekey=doc.get('id'),
-                        title=doc.get('title'),
-                        author=doc.get('author'),
-                        year=doc.get('year'),
-                        journal=doc.get('journal')
-                    ).splitlines()
-                    # ensure we never have duplicates
-                    results[doc.get('id')] = txt
+            citekey = doc.get('id')
 
-        self.current_results_list_txt = []
-        self.current_results_list_keys = []
-        for k, v in results.items():
-            self.current_results_list_keys.append(k)
-            self.current_results_list_txt.append(v)
+            txt = QUICKVIEW_FORMAT.format(
+                citekey=citekey,
+                title=strip_latex(doc.get('title')),
+                author=strip_latex(doc.get('author')),
+                year=strip_latex(doc.get('year')),
+                journal=strip_latex(doc.get('journal'))
+            ).splitlines()
+
+            self.current_results_keys.append(citekey)
+            self.current_results_txt.append(txt)
+
         self.view.window().show_quick_panel(
-            self.current_results_list_txt, self._paste)
+            self.current_results_txt,
+            self._paste_bibtex,
+            selected_index=1
+        )
 
     def run(self, edit):
         refresh_settings()
-        self.search_keyword()
+        self.search_bibtex()
 
     def run_keyonly(self, edit):
         refresh_settings()
         global CITATION_FORMAT
         CITATION_FORMAT = '%s'
-        self.search_keyword()
+        self.search_bibtex()
 
     def is_enabled(self):
         """Determines if the command is enabled
         """
         return True
 
-    def _paste(self, item):
-        """Paste item into buffer
-        """
+    def _proc_item(self, item):
+        year = str(item['issued']['date-parts'][0][0])
 
-        if item == -1:
+        if 'author' not in item:
+            item['author'] = [{'given': '', 'family': ''}]
+
+        citekey = (
+            ''.join(str(item['author'][0]['family']).split())
+            + year
+        )
+        citekey_suffix = 'a' if citekey in self.citekeys else ''
+        while citekey + citekey_suffix in self.citekeys:
+            citekey_suffix = chr(ord(citekey_suffix) + 1)
+        citekey = citekey + citekey_suffix
+        item['citekey'] = citekey
+
+        authors = [
+            a.get('given', '') + ' ' + a.get('family', '')
+            for a in item['author']
+        ]
+
+        txt = QUICKVIEW_FORMAT.format(
+            citekey=citekey,
+            title=item['title'][0],
+            author=', '.join(authors),
+            year=year,
+            journal=item['container-title'][0]
+        ).splitlines()
+        return (citekey, txt)
+
+
+    def _query_crossref(self, query):
+        cr = self.crossref
+        x = cr.works(
+            query=query,
+            limit=20,
+            filter={'type': ['journal-article']},
+            select=[
+                'title', 'author', 'URL', 'issued', 'type', 'volume',
+                'page', 'issue', 'short-container-title', 'DOI',
+                'article-number', 'container-title'
+            ]
+        )
+        self.current_results_items = x['message']['items']
+
+        docs = documents()
+
+        self.citekeys = set([doc.get('id') for doc in docs])
+
+        self.current_results_keys, self.current_results_txt = zip(
+            *(self._proc_item(item) for item in self.current_results_items)
+        )
+
+        self.view.window().show_quick_panel(
+            self.current_results_txt,
+            self._paste_crossref
+        )
+
+        self.citekeys = None
+
+
+    def search_crossref(self):
+        self.view.window().show_input_panel(
+            "Search CrossRef",
+            "",
+            on_done=self._query_crossref,
+            on_change=None,
+            on_cancel=None
+        )
+
+    def _paste(self, index):
+        """Paste index into buffer
+        """
+        if index == -1:
             return
-        ent = self.current_results_list_keys[item]
+
+        ent = self.current_results_keys[index]
         citekey = CITATION_FORMAT % ent
         if PANDOC_FIX:
             self.view.run_command('insert', {'characters': citekey})
             self.view.run_command('citer_combine_citations')
         else:
             self.view.run_command('insert', {'characters': citekey})
+
+    def _paste_bibtex(self, index):
+        if HABANERO_AVAILABLE and index == 0:
+            return self.search_crossref()
+
+        return self._paste(index)
+
+    def _paste_crossref(self, index):
+        write_bibtex(OUTPUT_BIBFILE_PATH, self.current_results_items[index])
+        return self._paste(index)
 
 
 class CiterShowKeysCommand(sublime_plugin.TextCommand):
