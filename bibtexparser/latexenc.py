@@ -7,14 +7,11 @@
 # Etienne Posthumus (epoz)
 # Francois Boulogne <fboulogne at april dot org>
 
-import itertools
 import re
 import sys
-import unicodedata
 
-__all__ = ['string_to_latex', 'latex_to_unicode', 'protect_uppercase',
-           'unicode_to_latex', 'unicode_to_crappy_latex1',
-           'unicode_to_crappy_latex2']
+__all__ = ['string_to_latex', 'protect_uppercase', 'unicode_to_latex',
+           'unicode_to_crappy_latex1', 'unicode_to_crappy_latex2']
 
 
 def string_to_latex(string):
@@ -30,59 +27,6 @@ def string_to_latex(string):
         else:
             new.append(unicode_to_latex_map.get(char, char))
     return ''.join(new)
-
-
-def _replace_latex(string, latex, unicod):
-    if latex in string:
-        if unicodedata.combining(unicod):
-            for m in re.finditer(re.escape(latex), string):
-                i, j = m.span()
-                # Insert after the following character,
-                if j < len(string):
-                    string = ''.join([
-                        string[:i], string[j], unicod, string[(j + 1):]])
-                else:
-                    # except if not in last position (nothing to modify)
-                    string = string[:i]
-        else:
-            # Just replace
-            string = string.replace(latex, unicod)
-    return string
-
-
-def _replace_all_latex(string, replacements):
-    for u, l in replacements:
-        string = _replace_latex(string, l.rstrip(), u)
-    return string
-
-
-def latex_to_unicode(string):
-    """
-    Convert a LaTeX string to unicode equivalent.
-
-    :param string: string to convert
-    :returns: string
-    """
-    if '\\' in string or '{' in string:
-        string = _replace_all_latex(string, itertools.chain(
-            unicode_to_crappy_latex1, unicode_to_latex))
-
-    # TODO Shouldn't this preserve escaped braces instead?
-    # Remove any left braces
-    string = string.replace("{", "").replace("}", "")
-
-    # If there is still very crappy items
-    if '\\' in string or '{' in string:
-        string = _replace_all_latex(string, unicode_to_crappy_latex2)
-
-    # Normalize unicode characters
-    # Also, when converting to unicode, we should return a normalized Unicode
-    # string, that is always having only compound accentuated character (letter
-    # + accent) or single accentuated character (letter with accent). We choose
-    # to normalize to the latter.
-    string = unicodedata.normalize("NFC", u"".join(string))
-
-    return string
 
 
 def protect_uppercase(string):
@@ -106,7 +50,6 @@ unicode_to_latex = []
 unicode_to_latex_map = {}
 unicode_to_crappy_latex1 = []
 unicode_to_crappy_latex2 = []
-
 
 def prepare_unicode_to_latex():
     global unicode_to_latex
@@ -336,7 +279,7 @@ def prepare_unicode_to_latex():
         ("\u0023", "\\#"),
         ("\u0024", "\\textdollar "),
         ("\u0025", "\\%"),
-        ("\u0026", "\\&"),
+        ("\u0026", "\\&amp;"),
         ("\u0027", "\\textquotesingle "),
         ("\u002A", "\\ast "),
         ("\u005C", "\\textbackslash "),
@@ -2696,6 +2639,5 @@ def prepare_unicode_to_latex():
         unicode_to_crappy_latex1 = tuple((k.decode('unicode-escape'), v) for k, v in to_crappy1)
         unicode_to_crappy_latex2 = tuple((k.decode('unicode-escape'), v) for k, v in to_crappy2)
         unicode_to_latex_map = dict(unicode_to_latex)
-
 
 prepare_unicode_to_latex()

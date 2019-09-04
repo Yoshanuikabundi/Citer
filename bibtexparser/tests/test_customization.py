@@ -4,7 +4,7 @@
 from __future__ import unicode_literals
 import unittest
 
-from bibtexparser.customization import getnames, convert_to_unicode, homogenize_latex_encoding, page_double_hyphen, keyword, add_plaintext_fields
+from bibtexparser.customization import getnames, convert_to_unicode, homogeneize_latex_encoding, page_double_hyphen, keyword
 
 
 class TestBibtexParserMethod(unittest.TestCase):
@@ -86,52 +86,14 @@ class TestBibtexParserMethod(unittest.TestCase):
         result = convert_to_unicode(record)
         expected = {'toto': 'ü ü'}
         self.assertEqual(result, expected)
-        # From issue 121
-        record = {'title': '{Two Gedenk\\"uberlieferung der Angelsachsen}'}
-        result = convert_to_unicode(record)
-        expected = {'title': 'Two Gedenküberlieferung der Angelsachsen'}
-        self.assertEqual(result, expected)
-        # From issue 161
-        record = {'title': r"p\^{a}t\'{e}"}
-        result = convert_to_unicode(record)
-        expected = {'title': "pâté"}
-        self.assertEqual(result, expected)
-        record = {'title': r"\^{i}le"}
-        result = convert_to_unicode(record)
-        expected = {'title': "île"}
-        self.assertEqual(result, expected)
-        record = {'title': r"\texttimes{}{\texttimes}\texttimes"}
-        result = convert_to_unicode(record)
-        expected = {'title': "×××"}
-        self.assertEqual(result, expected)
 
     ###########
-    # homogenize
+    # homogeneize
     ###########
-    def test_homogenize(self):
+    def test_homogeneize(self):
         record = {'toto': 'à {\`a} \`{a}'}
-        result = homogenize_latex_encoding(record)
+        result = homogeneize_latex_encoding(record)
         expected = {'toto': '{\`a} {\`a} {\`a}'}
-        self.assertEqual(result, expected)
-
-    ###########
-    # add_plaintext_fields
-    ###########
-    def test_add_plaintext_fields(self):
-        record = {
-            'title': 'On-line {Recognition} of {Handwritten} {Mathematical} {Symbols}',
-            'foobar': ['{FFT} {Foobar}', '{foobar}'],
-            'foobar2': {'item1': '{FFT} {Foobar}', 'item2': '{foobar}'}
-        }
-        result = add_plaintext_fields(record)
-        expected = {
-            'title': 'On-line {Recognition} of {Handwritten} {Mathematical} {Symbols}',
-            'plain_title': 'On-line Recognition of Handwritten Mathematical Symbols',
-            'foobar': ['{FFT} {Foobar}', '{foobar}'],
-            'plain_foobar': ['FFT Foobar', 'foobar'],
-            'foobar2': {'item1': '{FFT} {Foobar}', 'item2': '{foobar}'},
-            'plain_foobar2': {'item1': 'FFT Foobar', 'item2': 'foobar'}
-        }
         self.assertEqual(result, expected)
 
     ###########

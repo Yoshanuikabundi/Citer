@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import os.path
 import string, re
+import unicodedata
 
 # ST3 loads each package as a module, so it needs an extra prefix
 
@@ -21,9 +22,10 @@ if os.path.dirname(__file__) not in sys.path:
     sys.path.append(os.path.dirname(__file__))
     #sys.path.append(os.path.join(os.path.dirname(__file__), 'python-bibtexparser'))
 
-
-from bibtexparser.bparser import BibTexParser
+import bibtexparser
 from bibtexparser.customization import convert_to_unicode
+from bibtexparser.bparser import BibTexParser
+from bibtexparser.bwriter import to_bibtex
 
 try:
     import habanero
@@ -58,6 +60,7 @@ _MENU = None
 _CITEKEYS = None
 
 
+
 def plugin_loaded():
     """Called directly from sublime on plugin load
     """
@@ -87,22 +90,50 @@ def strip_latex(s):
     except:
         return s
 
+STANDARD_TYPES = {
+    'article',
+    'book',
+    'booklet',
+    'conference',
+    'inbook',
+    'incollection',
+    'inproceedings',
+    'manual',
+    'mastersthesis',
+    'misc',
+    'phdthesis',
+    'proceedings',
+    'techreport',
+    'unpublished'
+}
 
 def write_bibtex(filename, item):
     """Write a item from the crossref API to a bib file"""
-    # # Compose the database entry
-    # bibtex_entry =
+    # Compose the database entry
+    bibtex_entry = {
+        'id': item['citekey'],
+        'type': item['type'] if item['type'] in STANDARD_TYPES else 'article',
+    }
 
-    # # Read the output file
-    # with open(filename, 'r') as bibtex_file:
-    #     bibtex_database = bibtexparser.load(bibtex_file)
+    bibtex_entry['title'] = item.get('title', '')[0]
+    bibtex_entry['volume'] = item.get('volume', '')
+    bibtex_entry['number'] = item.get('issue', '')
+    bibtex_entry['pages'] = item.get('page', '')
+    bibtex_entry['year'] = str(item.get('issued', '')['date-parts'][0][0])
+    bibtex_entry['journal'] = item.get('container-title', '')[0]
+    bibtex_entry['doi'] = item.get('DOI', '')
+    bibtex_entry['author'] = ' and '.join([
+        a.get('family', '') + ', ' + a.get('given', '')
+        for a in item.get('author', [{}])
+    ])
 
-    # # Append the new entry
-    # bibtex_database.entries
+    bibtex_db = BibTexParser('')
+    bibtex_db.records.append(bibtex_entry)
+    bibtex_str = to_bibtex(bibtex_db)
 
-    # # Write the output file
-    # with open(filename, 'w') as bibtex_file:
-    #     bibtexparser.dump(bibtex_database, bibtex_file)
+    # append to the output file
+    with open(filename, 'a') as bibtex_file:
+        bibtex_file.write(bibtex_str)
 
     refresh_caches()
 
@@ -176,9 +207,12 @@ def load_bibfile(bib_path):
         return {}
 
     with open(str(bib_path), 'r', encoding="utf-8") as bibfile:
-        bp = BibTexParser(bibfile.read(),
-                          customization=convert_to_unicode,
-                          ignore_nonstandard_types=False)
+        bp = BibTexParser(
+            bibfile.read(),
+            customization=convert_to_unicode,
+            ignore_nonstandard_types=False
+        )
+        print(bp.records)
         return list(bp.get_entry_list())
 
 
@@ -237,6 +271,9 @@ def refresh_settings():
     if len(OUTPUT_BIBFILE_PATH) > 1:
         raise ValueError("Configure only one output_bib_file_path")
     OUTPUT_BIBFILE_PATH = OUTPUT_BIBFILE_PATH[0]
+
+    if OUTPUT_BIBFILE_PATH not in BIBFILE_PATH:
+        raise ValueError("output_bib_file_path should be one of the input files")
 
 
 
@@ -402,28 +439,27 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
     def _proc_item(self, item):
         year = str(item['issued']['date-parts'][0][0])
 
-        if 'author' not in item:
-            item['author'] = [{'given': '', 'family': ''}]
-
         citekey = (
-            ''.join(str(item['author'][0]['family']).split())
+            ''.join(str(item.get('author', [{}])[0].get('family', '')).split())
             + year
         )
+        citekey = unicodedata.normalize('NFKD', citekey)
+        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
         citekey_suffix = 'a' if citekey in self.citekeys else ''
         while citekey + citekey_suffix in self.citekeys:
             citekey_suffix = chr(ord(citekey_suffix) + 1)
         citekey = citekey + citekey_suffix
         item['citekey'] = citekey
 
-        authors = [
-            a.get('given', '') + ' ' + a.get('family', '')
-            for a in item['author']
-        ]
+        authors = '; '.join([
+            a.get('family', '') + ', ' + a.get('given', '')
+            for a in item.get('author', [{}])
+        ])
 
         txt = QUICKVIEW_FORMAT.format(
             citekey=citekey,
             title=item['title'][0],
-            author=', '.join(authors),
+            author=authors,
             year=year,
             journal=item['container-title'][0]
         ).splitlines()
@@ -448,8 +484,12 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         self.citekeys = set([doc.get('id') for doc in docs])
 
+        if not self.current_results_items:
+            sublime.status_message("CrossRef query gave no results")
+            return
+
         self.current_results_keys, self.current_results_txt = zip(
-            *(self._proc_item(item) for item in self.current_results_items)
+            *[self._proc_item(item) for item in self.current_results_items]
         )
 
         self.view.window().show_quick_panel(
