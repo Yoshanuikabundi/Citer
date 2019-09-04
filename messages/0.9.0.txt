@@ -1,0 +1,8 @@
+JAMCiter 0.9.0
+===========
+
+- Forked by Yoshanuikabundi
+- Optimised to be a bit more friendly with the default sublime-settings file.
+    + Still uses the same defaults under the hood so your existing setup should be identical
+- Can now search and automatically include references from CrossRef - experimental
+- LOADS of bug fixes and performance improvements

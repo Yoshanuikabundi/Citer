@@ -1,3 +1,21 @@
 {
-"pandoc_cite_fix": true
+    //REQUIRED (set in project settings):
+    // "bibtex_file_path": "",
+    //OPTIONAL:
+    //By default Citer Search looks for your keyword in the
+    //author, title, year, and Citekey (id) fields
+    "search_fields": ["author", "title", "year", "journal", "id"] ,
+    //Default format is @Citekey
+    "citation_format": "@%s",
+    "citation_regex": ".*\\[(@[a-zA-Z0-9_-]*;\\s*)*?@$",
+    //list of scopes. Could be top level "text" or "source", or limit to
+    // e.g "text.html.markdown"
+    "completions_scopes": ["text.html.markdown.academicmarkdown"],
+    "enable_completions": true,
+    "use_search_for_completions": true,
+    "quickview_format": "@{citekey}: {title}\n{author}\n{journal} {year}",
+    // You should uncomment this and put your email address in so that
+    // CrossRef put you on the polite users list and you get your citations
+    // faster.
+    // "crossref_mailto": "user@example.com"
 }
