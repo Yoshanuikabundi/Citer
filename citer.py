@@ -151,6 +151,11 @@ class Paper:
 def bibfile_modifed(bib_path):
     global _LST_MOD_TIME
     bib_path = bib_path.strip()
+
+    if not Path(bib_path).exists():
+        sublime.status_message("WARNING: BibTex file " + str(bib_path) + " not found")
+        return False
+
     last_modified_time = os.path.getmtime(bib_path)
     cached_modifed_time = _LST_MOD_TIME.get(bib_path)
     if cached_modifed_time is None or last_modified_time != cached_modifed_time:
@@ -165,8 +170,12 @@ def load_bibfile(bib_path):
         sublime.status_message("WARNING: No BibTex file configured for Citer")
         return {}
 
-    bib_path = bib_path.strip()
-    with open(bib_path, 'r', encoding="utf-8") as bibfile:
+    bib_path = Path(bib_path.strip())
+    if not bib_path.exists():
+        sublime.status_message("WARNING: BibTex file " + str(bib_path) + " not found")
+        return {}
+
+    with open(str(bib_path), 'r', encoding="utf-8") as bibfile:
         bp = BibTexParser(bibfile.read(),
                           customization=convert_to_unicode,
                           ignore_nonstandard_types=False)
@@ -196,9 +205,12 @@ def refresh_settings():
         project_citer_settings = project_data['settings']['citer']
         if project_data and setting in project_citer_settings:
             if is_path:
+                set_paths = project_citer_settings[setting]
+                if not isinstance(set_paths, list):
+                    set_paths = [set_paths]
                 project_folder = Path(sublime.active_window().project_file_name()).parent
-                out = Path(project_citer_settings[setting])
-                return str(project_folder / out)
+                out = [str(project_folder / path) for path in set_paths]
+                return out
             else:
                 return project_citer_settings[setting]
         else:
@@ -221,6 +233,11 @@ def refresh_settings():
 
     CROSSREF_MAILTO = get_settings('crossref_mailto', None)
     OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)
+
+    if len(OUTPUT_BIBFILE_PATH) > 1:
+        raise ValueError("Configure only one output_bib_file_path")
+    OUTPUT_BIBFILE_PATH = OUTPUT_BIBFILE_PATH[0]
+
 
 
 def refresh_caches():
