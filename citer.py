@@ -27,17 +27,22 @@ from bibtexparser.customization import convert_to_unicode
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.bwriter import to_bibtex
 
-from pymed import PubMed
+try:
+    from pymed import PubMed
+    PUBMED_AVAILABLE = True
+except:
+    PUBMED_AVAILABLE = False
+# Can make this available when its ready
+PUBMED_AVAILABLE = False
 
 try:
-    import habanero
+    from habanero import Crossref
     HABANERO_AVAILABLE = True
 except:
     HABANERO_AVAILABLE = False
 
 # settings cache globals
 BIBFILE_PATH = None
-SEARCH_IN = None
 CITATION_FORMAT = None
 QUICKVIEW_FORMAT = None
 ENABLE_COMPLETIONS = None
@@ -61,6 +66,9 @@ _DOCUMENTS = []
 _MENU = None
 _CITEKEYS = None
 
+_CROSSREF = None
+if PUBMED_AVAILABLE:
+    _PUBMED = PubMed(tool='JAMCiter', email='joshuamitchell@anu.edu.au')
 
 
 def plugin_loaded():
@@ -109,36 +117,6 @@ STANDARD_TYPES = {
     'unpublished'
 }
 
-def write_bibtex(filename, item):
-    """Write a item from the crossref API to a bib file"""
-    # Compose the database entry
-    bibtex_entry = {
-        'id': item['citekey'],
-        'type': item['type'] if item['type'] in STANDARD_TYPES else 'article',
-    }
-
-    bibtex_entry['title'] = item.get('title', '')[0]
-    bibtex_entry['volume'] = item.get('volume', '')
-    bibtex_entry['number'] = item.get('issue', '')
-    bibtex_entry['pages'] = item.get('page', '')
-    bibtex_entry['year'] = str(item.get('issued', '')['date-parts'][0][0])
-    bibtex_entry['journal'] = item.get('container-title', '')[0]
-    bibtex_entry['doi'] = item.get('DOI', '')
-    bibtex_entry['author'] = ' and '.join([
-        a.get('family', '') + ', ' + a.get('given', '')
-        for a in item.get('author', [{}])
-    ])
-
-    bibtex_db = BibTexParser('')
-    bibtex_db.records.append(bibtex_entry)
-    bibtex_str = to_bibtex(bibtex_db)
-
-    # append to the output file
-    with open(filename, 'a') as bibtex_file:
-        bibtex_file.write(bibtex_str)
-
-    refresh_caches()
-
 class Paper:
 
     _filepath = None
@@ -180,6 +158,17 @@ class Paper:
 
 # Bibfiles
 
+def append_bibfile(bib_path, entry):
+    bibtex_db = BibTexParser('')
+    bibtex_db.records.append(entry)
+    bibtex_str = to_bibtex(bibtex_db)
+
+    # append to the output file
+    with open(bib_path, 'a') as bibtex_file:
+        bibtex_file.write(bibtex_str)
+
+    refresh_caches()
+
 
 def bibfile_modifed(bib_path):
     global _LST_MOD_TIME
@@ -219,7 +208,6 @@ def load_bibfile(bib_path):
 
 def refresh_settings():
     global BIBFILE_PATH
-    global SEARCH_IN
     global CITATION_FORMAT
     global COMPLETIONS_SCOPES
     global EXCLUDED_SCOPES
@@ -234,6 +222,7 @@ def refresh_settings():
 
     global CROSSREF_MAILTO
     global OUTPUT_BIBFILE_PATH
+    global _CROSSREF
 
     def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
@@ -253,7 +242,6 @@ def refresh_settings():
 
     settings = sublime.load_settings('Citer.sublime-settings')
     BIBFILE_PATH = get_settings('bibtex_file_path', None, is_path=True)
-    SEARCH_IN = get_settings('search_fields', ["author", "title", "year", "id"])
     CITATION_FORMAT = get_settings('citation_format', "@%s")
     COMPLETIONS_SCOPES = get_settings('completions_scopes', ['text.html.markdown'])
     EXCLUDED_SCOPES = get_settings('excluded_scopes', [])
@@ -275,6 +263,9 @@ def refresh_settings():
 
     if OUTPUT_BIBFILE_PATH not in BIBFILE_PATH:
         raise ValueError("output_bib_file_path should be one of the input files")
+
+    if HABANERO_AVAILABLE:
+        _CROSSREF = Crossref(mailto=CROSSREF_MAILTO)
 
 
 
@@ -305,6 +296,8 @@ def refresh_caches():
 
     _CITEKEYS = [doc.get('id') for doc in _DOCUMENTS]
     _MENU = _make_citekey_menu_list(_DOCUMENTS)
+
+
 
 
 # Do some fancy build to get a sane list in the UI
@@ -380,26 +373,26 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     """
     """
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def search_bibtex(self):
+        selected_index=0
         self.current_results_txt = []
         self.current_results_keys = []
         if HABANERO_AVAILABLE:
-            self.crossref = habanero.Crossref(mailto=CROSSREF_MAILTO)
-
-    def search_bibtex(self):
-        if HABANERO_AVAILABLE:
-            self.current_results_txt = [
-                [
-                    "Search CrossRef",
-                    "Insert a reference from the crossref database"
-                ]
-            ]
-            self.current_results_keys = ["&crossref"]
-        else:
-            self.current_results_txt = []
-            self.current_results_keys = []
+            self.current_results_txt.append([
+                "Search CrossRef",
+                "Insert a reference from the CrossRef database"
+            ])
+            self.current_results_keys.append("&crossref")
+            self.habanero_index = selected_index
+            selected_index += 1
+        if PUBMED_AVAILABLE:
+            self.current_results_txt.append([
+                "Search PubMed",
+                "Insert a reference from the PubMed database"
+            ])
+            self.current_results_keys.append("&PubMed")
+            self.pubmed_index = selected_index
+            selected_index += 1
 
         # Generate all the results to search
         for doc in documents():
@@ -419,7 +412,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         self.view.window().show_quick_panel(
             self.current_results_txt,
             self._paste_bibtex,
-            selected_index=1
+            selected_index=selected_index
         )
 
     def run(self, edit):
@@ -468,8 +461,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
 
     def _query_crossref(self, query):
-        cr = self.crossref
-        x = cr.works(
+        x = _CROSSREF.works(
             query=query,
             limit=20,
             filter={'type': ['journal-article']},
@@ -501,11 +493,78 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         self.citekeys = None
 
 
+    def _proc_pmart(self, pubmedarticle):
+        year = pubmedarticle.publication_date.year
+
+        citekey = (
+            ''.join(str(pubmedarticle.author[0].get('lastname', '')).split())
+            + year
+        )
+        citekey = unicodedata.normalize('NFKD', citekey)
+        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
+        citekey_suffix = 'a' if citekey in self.citekeys else ''
+        while citekey + citekey_suffix in self.citekeys:
+            citekey_suffix = chr(ord(citekey_suffix) + 1)
+        citekey = citekey + citekey_suffix
+
+        authors = '; '.join([
+            a.get('lastname', '')
+            + ', '
+            + a.get('initials')
+            + ' '
+            + a.get('firstname', '')
+            for a in pubmedarticle.author
+        ])
+
+        txt = QUICKVIEW_FORMAT.format(
+            citekey=citekey,
+            title=pubmedarticle.title,
+            author=authors,
+            year=year,
+            journal=pubmedarticle.journal
+        ).splitlines()
+
+        return (citekey, txt)
+
+    def _query_pubmed(self, query):
+        self.current_results_pmart = _PUBMED.query(
+            query,
+            max_results=20
+        )
+
+        docs = documents()
+        self.citekeys = set([doc.get('id') for doc in docs])
+
+        if not self.current_results_pmart:
+            sublime.status_message("PubMed query gave no results")
+            return
+
+        self.current_results_keys, self.current_results_txt = zip(
+            *[self._proc_pmart(pmart) for pmart in self.current_results_pmart]
+        )
+
+        self.view.window().show_quick_panel(
+            self.current_results_txt,
+            self._paste_crossref
+        )
+
+        self.citekeys = None
+
+
     def search_crossref(self):
         self.view.window().show_input_panel(
             "Search CrossRef",
             "",
             on_done=self._query_crossref,
+            on_change=None,
+            on_cancel=None
+        )
+
+    def search_pubmed(self):
+        self.view.window().show_input_panel(
+            "Search PubMed",
+            "",
+            on_done=self._query_pubmed,
             on_change=None,
             on_cancel=None
         )
@@ -525,13 +584,60 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             self.view.run_command('insert', {'characters': citekey})
 
     def _paste_bibtex(self, index):
-        if HABANERO_AVAILABLE and index == 0:
+        if HABANERO_AVAILABLE and index == self.habanero_index:
             return self.search_crossref()
+        if PUBMED_AVAILABLE and index == self.pubmed_index:
+            return self.search_pubmed()
 
         return self._paste(index)
 
     def _paste_crossref(self, index):
-        write_bibtex(OUTPUT_BIBFILE_PATH, self.current_results_items[index])
+        item = self.current_results_items[index]
+        bibtex_entry = {
+            'id': self.current_results_keys[index],
+            'type': item['type'] if item['type'] in STANDARD_TYPES else 'article',
+
+            'title': item.get('title', '')[0],
+            'volume': item.get('volume', ''),
+            'number': item.get('issue', ''),
+            'pages': item.get('page', ''),
+            'year': str(item.get('issued', '')['date-parts'][0][0]),
+            'journal': item.get('container-title', '')[0],
+            'doi': item.get('DOI', ''),
+            'author': ' and '.join([
+                a.get('family', '') + ', ' + a.get('given', '')
+                for a in item.get('author', [{}])
+            ])
+        }
+
+        append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
+
+        return self._paste(index)
+
+    def _paste_pubmed(self, index):
+        pmart = self.current_results_pmart[index]
+        bibtex_entry = {
+            'id': self.current_results_keys[index],
+            'type': 'article',
+
+            'title': pmart.title,
+            'volume': '',
+            'number': '',
+            'pages': '',
+            'year': str(pmart.publication_date.year),
+            'journal': pmart.journal,
+            'doi': pmart.doi,
+            'author': ' and '.join([
+                a.get('lastname', '')
+                + ', '
+                + a.get('initials', '')
+                + ' '
+                + a.get('firstname', '')
+                for a in pmart.authors
+            ])
+        }
+
+        append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
         return self._paste(index)
 
 
