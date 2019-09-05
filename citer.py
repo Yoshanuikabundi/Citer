@@ -62,6 +62,7 @@ CITATION_RE = None
 CROSSREF_MAILTO = None
 OUTPUT_BIBFILE_PATH = None
 CROSSREF_LIMIT = None
+CROSSREF_DATE_FIELD = None
 
 # Internal Cache globals
 _PAPERS = {}
@@ -261,6 +262,7 @@ def refresh_settings():
     global CROSSREF_MAILTO
     global OUTPUT_BIBFILE_PATH
     global CROSSREF_LIMIT
+    global CROSSREF_DATE_FIELD
     global _CROSSREF
 
     def get_settings(setting, default, is_path=False):
@@ -298,6 +300,7 @@ def refresh_settings():
     CROSSREF_MAILTO = get_settings('crossref_mailto', None)
     OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)  # noqa: E501
     CROSSREF_LIMIT = get_settings('crossref_limit', 20)
+    CROSSREF_DATE_FIELD = get_settings('crossref_date_field', 'issued')
 
     if len(OUTPUT_BIBFILE_PATH) > 1:
         raise ValueError("Configure only one output_bib_file_path")
@@ -472,11 +475,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         return True
 
     def _proc_item(self, item):
-        year = str(item['issued']['date-parts'][0][0])
+        date = item.get(CROSSREF_DATE_FIELD, {'date-parts': [[None]]})
+        year = date['date-parts'][0][0]
+        if year is None and item['type'] == 'book-chapter':
+            year = 'INBOOK'
 
         citekey = (
             ''.join(str(item.get('author', [{}])[0].get('family', '')).split())
-            + year
+            + str(year)
         )
         citekey = unicodedata.normalize('NFKD', citekey)
         citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
@@ -495,10 +501,10 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             citekey=citekey,
             title=item['title'][0],
             author=authors,
-            year=year,
+            year=str(year),
             journal=item['container-title'][0]
         ).splitlines()
-        return (citekey, txt)
+        return (citekey, txt, item)
 
     def _query_crossref(self, query):
         x = _CROSSREF.works(
@@ -506,7 +512,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             limit=CROSSREF_LIMIT,
             filter={'type': ['journal-article', 'book-chapter']},
             select=[
-                'title', 'author', 'issued', 'type', 'volume', 'page',
+                'title', 'author', CROSSREF_DATE_FIELD, 'type', 'volume', 'page',
                 'issue', 'DOI', 'container-title', 'editor', 'publisher'
             ]
         )
@@ -520,9 +526,16 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             sublime.status_message("CrossRef query gave no results")
             return
 
-        self.current_results_keys, self.current_results_txt = zip(
-            *[self._proc_item(item) for item in self.current_results_items]
-        )
+        self.current_results_keys, self.current_results_txt, items = zip(*[
+            self._proc_item(item)
+            for item in self.current_results_items
+            # Skip entries without authors, and date for journal articles
+            if 'author' in item and (item['type'] == 'book-chapter' or (
+                CROSSREF_DATE_FIELD in item
+                and item[CROSSREF_DATE_FIELD] != {'date-parts': [[None]]}
+            ))
+        ])
+        self.current_results_items = items
 
         self.view.window().show_quick_panel(
             self.current_results_txt,
@@ -630,7 +643,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     def _paste_crossref(self, index):
         item = self.current_results_items[index]
-        date_issued = item.get('issued', {'date-parts'}[['']])
+        date_issued = item.get(CROSSREF_DATE_FIELD, {'date-parts': [['']]})
 
         bibtex_entry = {
             'id': self.current_results_keys[index],
@@ -640,13 +653,13 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             'volume': item.get('volume', ''),
             'number': item.get('issue', ''),
             'pages': item.get('page', ''),
-            'year': date_issued['date-parts'][0][0],
+            'year': str(date_issued['date-parts'][0][0]),
             'doi': item.get('DOI', ''),
             'editor': item.get('editor', ''),
             'publisher': item.get('publisher', ''),
             'author': ' and '.join([
                 a.get('family', '') + ', ' + a.get('given', '')
-                for a in item.get('author', [{}])
+                for a in item.get('author', [])
             ])
         }
 
