@@ -1,3 +1,4 @@
+# type: ignore
 from __future__ import print_function, absolute_import, division
 import sublime
 import sublime_plugin
@@ -5,14 +6,17 @@ import sublime_plugin
 from pathlib import Path
 import sys
 import os.path
-import string, re
+import string
+import re
 import unicodedata
+from collections import defaultdict
+from imp import reload
 
 # ST3 loads each package as a module, so it needs an extra prefix
 
 reloader_name = 'citer.reloader'
 reloader_name = 'Citer.' + reloader_name
-from imp import reload
+
 
 # Make sure all dependencies are reloaded on upgrade
 if reloader_name in sys.modules:
@@ -20,17 +24,17 @@ if reloader_name in sys.modules:
 
 if os.path.dirname(__file__) not in sys.path:
     sys.path.append(os.path.dirname(__file__))
-    #sys.path.append(os.path.join(os.path.dirname(__file__), 'python-bibtexparser'))
 
-import bibtexparser
-from bibtexparser.customization import convert_to_unicode
-from bibtexparser.bparser import BibTexParser
-from bibtexparser.bwriter import to_bibtex
+
+import bibtexparser  # noqa: E402
+from bibtexparser.customization import convert_to_unicode  # noqa: E402
+from bibtexparser.bparser import BibTexParser  # noqa: E402
+from bibtexparser.bwriter import to_bibtex  # noqa: E402
 
 try:
     from pymed import PubMed
     PUBMED_AVAILABLE = True
-except:
+except Exception:
     PUBMED_AVAILABLE = False
 # Can make this available when its ready
 PUBMED_AVAILABLE = False
@@ -38,7 +42,7 @@ PUBMED_AVAILABLE = False
 try:
     from habanero import Crossref
     HABANERO_AVAILABLE = True
-except:
+except Exception:
     HABANERO_AVAILABLE = False
 
 # settings cache globals
@@ -57,6 +61,7 @@ CITATION_RE = None
 
 CROSSREF_MAILTO = None
 OUTPUT_BIBFILE_PATH = None
+CROSSREF_LIMIT = None
 
 # Internal Cache globals
 _PAPERS = {}
@@ -94,13 +99,24 @@ def load_yamlbib_path(view):
 
     _YAMLBIB_PATH = _PAPERS[filename].bibpath()
 
+
 def strip_latex(s):
-    try:
-        return s.translate(str.maketrans('','','{}'))
-    except:
+    if s is None:
+        return None
+    else:
+        s = s.replace('{', '')
+        s = s.replace('}', '')
+        s = s.replace('``', '"')
+        s = s.replace('\'\'', '"')
         return s
 
-STANDARD_TYPES = {
+
+STANDARD_TYPES = defaultdict(lambda: 'article', {
+        'journal-article': 'article',
+        'book-chapter': 'incollection',
+        'proceedings-article': 'inproceedings'
+})
+for s in [
     'article',
     'book',
     'booklet',
@@ -115,7 +131,9 @@ STANDARD_TYPES = {
     'proceedings',
     'techreport',
     'unpublished'
-}
+]:
+    STANDARD_TYPES[s] = s
+
 
 class Paper:
 
@@ -135,7 +153,10 @@ class Paper:
             self._bibpath = None
 
             text = self.view.substr(sublime.Region(0, self.view.size()))
-            yamlP = re.compile(r'^---$.*?((^---$)|(^\.\.\.$))', re.MULTILINE | re.DOTALL)
+            yamlP = re.compile(
+                r'^---$.*?((^---$)|(^\.\.\.$))',
+                re.MULTILINE | re.DOTALL
+            )
             yamlMatch = yamlP.search(text)
 
             if yamlMatch:
@@ -151,12 +172,18 @@ class Paper:
 
                     if pathMatch:
 
-                        folder = os.path.dirname(os.path.realpath(self._filepath))
-                        self._bibpath = os.path.join(folder, pathMatch.group())
+                        folder = os.path.dirname(
+                            os.path.realpath(self._filepath)
+                        )
+                        self._bibpath = os.path.join(
+                            folder,
+                            pathMatch.group()
+                        )
 
         return self._bibpath
 
 # Bibfiles
+
 
 def append_bibfile(bib_path, entry):
     bibtex_db = BibTexParser('')
@@ -175,12 +202,19 @@ def bibfile_modifed(bib_path):
     bib_path = bib_path.strip()
 
     if not Path(bib_path).exists():
-        sublime.status_message("WARNING: BibTex file " + str(bib_path) + " not found")
+        sublime.status_message(
+            "WARNING: BibTex file "
+            + str(bib_path)
+            + " not found"
+        )
         return False
 
     last_modified_time = os.path.getmtime(bib_path)
-    cached_modifed_time = _LST_MOD_TIME.get(bib_path)
-    if cached_modifed_time is None or last_modified_time != cached_modifed_time:
+    cached_modified_time = _LST_MOD_TIME.get(bib_path)
+    if (
+        cached_modified_time is None
+        or last_modified_time != cached_modified_time
+    ):
         _LST_MOD_TIME[bib_path] = last_modified_time
         return True
     else:
@@ -194,7 +228,11 @@ def load_bibfile(bib_path):
 
     bib_path = Path(bib_path.strip())
     if not bib_path.exists():
-        sublime.status_message("WARNING: BibTex file " + str(bib_path) + " not found")
+        sublime.status_message(
+            "WARNING: BibTex file "
+            + str(bib_path)
+            + " not found"
+        )
         return {}
 
     with open(str(bib_path), 'r', encoding="utf-8") as bibfile:
@@ -222,17 +260,20 @@ def refresh_settings():
 
     global CROSSREF_MAILTO
     global OUTPUT_BIBFILE_PATH
+    global CROSSREF_LIMIT
     global _CROSSREF
 
     def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
         project_citer_settings = project_data['settings']['citer']
+        project_file = Path(sublime.active_window().project_file_name())
+        project_folder = project_file.parent
         if project_data and setting in project_citer_settings:
             if is_path:
                 set_paths = project_citer_settings[setting]
                 if not isinstance(set_paths, list):
                     set_paths = [set_paths]
-                project_folder = Path(sublime.active_window().project_file_name()).parent
+
                 out = [str(project_folder / path) for path in set_paths]
                 return out
             else:
@@ -243,7 +284,7 @@ def refresh_settings():
     settings = sublime.load_settings('Citer.sublime-settings')
     BIBFILE_PATH = get_settings('bibtex_file_path', None, is_path=True)
     CITATION_FORMAT = get_settings('citation_format', "@%s")
-    COMPLETIONS_SCOPES = get_settings('completions_scopes', ['text.html.markdown'])
+    COMPLETIONS_SCOPES = get_settings('completions_scopes', ['text.html.markdown'])  # noqa: E501
     EXCLUDED_SCOPES = get_settings('excluded_scopes', [])
 
     ENABLE_COMPLETIONS = get_settings('enable_completions', True)
@@ -252,21 +293,23 @@ def refresh_settings():
     EXCLUDE = get_settings('hide_other_completions', True)
 
     SEARCH_COMPLETIONS = get_settings('use_search_for_completions', False)
-    CITATION_RE = get_settings('citation_regex', r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')
+    CITATION_RE = get_settings('citation_regex', r'.*\[(@[a-zA-Z0-9_-]*;\s*)*?@$')  # noqa: E501
 
     CROSSREF_MAILTO = get_settings('crossref_mailto', None)
-    OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)
+    OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)  # noqa: E501
+    CROSSREF_LIMIT = get_settings('crossref_limit', 20)
 
     if len(OUTPUT_BIBFILE_PATH) > 1:
         raise ValueError("Configure only one output_bib_file_path")
     OUTPUT_BIBFILE_PATH = OUTPUT_BIBFILE_PATH[0]
 
     if OUTPUT_BIBFILE_PATH not in BIBFILE_PATH:
-        raise ValueError("output_bib_file_path should be one of the input files")
+        raise ValueError(
+            "output_bib_file_path should be one of the input files"
+        )
 
     if HABANERO_AVAILABLE:
         _CROSSREF = Crossref(mailto=CROSSREF_MAILTO)
-
 
 
 def refresh_caches():
@@ -285,7 +328,7 @@ def refresh_caches():
     if len(paths) == 0:
         sublime.status_message("WARNING: No BibTex file configured for Citer")
     else:
-        # To avoid duplicate entries, if any bibfiles modified, reload all of them
+        # To avoid duplicate entries, reload all bibfiles if any were modified
         modified = False
         for single_path in paths:
             modified = modified or bibfile_modifed(single_path)
@@ -296,8 +339,6 @@ def refresh_caches():
 
     _CITEKEYS = [doc.get('id') for doc in _DOCUMENTS]
     _MENU = _make_citekey_menu_list(_DOCUMENTS)
-
-
 
 
 # Do some fancy build to get a sane list in the UI
@@ -322,7 +363,7 @@ def _parse_authors(auth):
             authors_abbr = authors[0] + " and " + authors[1]
         else:
             authors_abbr = authors[0] + " et. al"
-    except:
+    except Exception:
         authors_abbr = auth
     return authors_abbr
 
@@ -374,7 +415,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
     """
     """
     def search_bibtex(self):
-        selected_index=0
+        selected_index = 0
         self.current_results_txt = []
         self.current_results_keys = []
         if HABANERO_AVAILABLE:
@@ -459,16 +500,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         ).splitlines()
         return (citekey, txt)
 
-
     def _query_crossref(self, query):
         x = _CROSSREF.works(
             query=query,
-            limit=20,
-            filter={'type': ['journal-article']},
+            limit=CROSSREF_LIMIT,
+            filter={'type': ['journal-article', 'book-chapter']},
             select=[
-                'title', 'author', 'URL', 'issued', 'type', 'volume',
-                'page', 'issue', 'short-container-title', 'DOI',
-                'article-number', 'container-title'
+                'title', 'author', 'issued', 'type', 'volume', 'page',
+                'issue', 'DOI', 'container-title', 'editor', 'publisher'
             ]
         )
         self.current_results_items = x['message']['items']
@@ -491,7 +530,6 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         )
 
         self.citekeys = None
-
 
     def _proc_pmart(self, pubmedarticle):
         year = pubmedarticle.publication_date.year
@@ -550,7 +588,6 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         self.citekeys = None
 
-
     def search_crossref(self):
         self.view.window().show_input_panel(
             "Search CrossRef",
@@ -593,22 +630,32 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     def _paste_crossref(self, index):
         item = self.current_results_items[index]
+        date_issued = item.get('issued', {'date-parts'}[['']])
+
         bibtex_entry = {
             'id': self.current_results_keys[index],
-            'type': item['type'] if item['type'] in STANDARD_TYPES else 'article',
+            'type': STANDARD_TYPES[item['type']],
 
-            'title': item.get('title', '')[0],
+            'title': item.get('title', [''])[0],
             'volume': item.get('volume', ''),
             'number': item.get('issue', ''),
             'pages': item.get('page', ''),
-            'year': str(item.get('issued', '')['date-parts'][0][0]),
-            'journal': item.get('container-title', '')[0],
+            'year': date_issued['date-parts'][0][0],
             'doi': item.get('DOI', ''),
+            'editor': item.get('editor', ''),
+            'publisher': item.get('publisher', ''),
             'author': ' and '.join([
                 a.get('family', '') + ', ' + a.get('given', '')
                 for a in item.get('author', [{}])
             ])
         }
+
+        if item['type'] == 'journal-article':
+            bibtex_entry['journal'] = item.get('container-title', [''])[0]
+        elif item['type'] == 'book-chapter':
+            bibtex_entry['booktitle'] = item.get('container-title', [''])[0]
+
+        bibtex_entry = {k: v for k, v in bibtex_entry.items() if v}
 
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
 
@@ -708,10 +755,15 @@ class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
 
     """docstring for CiterCompleteCitationEventListener"""
 
-
     def on_query_completions(self, view, prefix, loc):
-        in_scope = any(view.match_selector(loc[0], scope) for scope in COMPLETIONS_SCOPES)
-        ex_scope = any(view.match_selector(loc[0], scope) for scope in EXCLUDED_SCOPES)
+        in_scope = any(
+            view.match_selector(loc[0], scope)
+            for scope in COMPLETIONS_SCOPES
+        )
+        ex_scope = any(
+            view.match_selector(loc[0], scope)
+            for scope in EXCLUDED_SCOPES
+        )
 
         if ENABLE_COMPLETIONS and in_scope and not ex_scope:
             if SEARCH_COMPLETIONS:
@@ -728,13 +780,16 @@ class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
 
                 search = prefix.replace('@', '').lower()
 
-                results = [[key, key] for key in citekeys_list() if search in key.lower()]
+                results = [
+                    [key, key]
+                    for key in citekeys_list()
+                    if search in key.lower()
+                ]
 
                 if EXCLUDE and len(results) > 0:
                     return (results, sublime.INHIBIT_WORD_COMPLETIONS)
                 else:
                     return results
-
 
 
 class CiterCombineCitationsCommand(sublime_plugin.TextCommand):
