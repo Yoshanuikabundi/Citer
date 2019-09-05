@@ -27,6 +27,8 @@ from bibtexparser.customization import convert_to_unicode
 from bibtexparser.bparser import BibTexParser
 from bibtexparser.bwriter import to_bibtex
 
+from pymed import PubMed
+
 try:
     import habanero
     HABANERO_AVAILABLE = True
@@ -212,7 +214,6 @@ def load_bibfile(bib_path):
             customization=convert_to_unicode,
             ignore_nonstandard_types=False
         )
-        print(bp.records)
         return list(bp.get_entry_list())
 
 

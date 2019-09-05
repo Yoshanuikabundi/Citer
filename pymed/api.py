@@ -4,8 +4,6 @@ import itertools
 
 import xml.etree.ElementTree as xml
 
-from typing import Union
-
 from .helpers import batches
 from .article import PubMedArticle
 from .book import PubMedBookArticle
@@ -97,8 +95,8 @@ class PubMed(object):
 
         # Return the total number of results (without retrieving them)
         return total_results_count
-    
-    def _exceededRateLimit(self) -> bool:
+
+    def _exceededRateLimit(self):
         """ Helper method to check if we've exceeded the rate limit.
 
             Returns:
@@ -111,9 +109,7 @@ class PubMed(object):
         # Return whether we've made more requests in the last second, than the rate limit
         return len(self._requestsMade) > self._rateLimit
 
-    def _get(
-        self: object, url: str, parameters: dict, output: str = "json"
-    ) -> Union[dict, str]:
+    def _get(self, url, parameters, output="json"):
         """ Generic helper method that makes a request to PubMed.
 
             Parameters:
@@ -137,7 +133,7 @@ class PubMed(object):
         parameters["retmode"] = output
 
         # Make the request to PubMed
-        response = requests.get(f"{BASE_URL}{url}", params=parameters)
+        response = requests.get(str(BASE_URL)+str(url), params=parameters)
 
         # Check for any errors
         response.raise_for_status()

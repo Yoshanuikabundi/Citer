@@ -1,6 +1,3 @@
-from typing import TypeVar
-
-
 def batches(iterable: list, n: int = 1) -> list:
     """ Helper method that creates batches from an iterable.
 
@@ -22,9 +19,7 @@ def batches(iterable: list, n: int = 1) -> list:
         yield iterable[index : min(index + n, length)]
 
 
-def getContent(
-    element: TypeVar("Element"), path: str, default: str = None, separator: str = "\n"
-) -> str:
+def getContent(element, path, default=None, separator="\n"):
     """ Internal helper method that retrieves the text content of an
         XML element.
 
