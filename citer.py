@@ -101,6 +101,10 @@ def load_yamlbib_path(view):
     _YAMLBIB_PATH = _PAPERS[filename].bibpath()
 
 
+def condense_whitespace(s):
+    return ' '.join(str(s).split())
+
+
 def strip_latex(s):
     if s is None:
         return None
@@ -109,7 +113,7 @@ def strip_latex(s):
         s = s.replace('}', '')
         s = s.replace('``', '"')
         s = s.replace('\'\'', '"')
-        return s
+        return condense_whitespace(s)
 
 
 STANDARD_TYPES = defaultdict(lambda: 'article', {
@@ -499,11 +503,12 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         txt = QUICKVIEW_FORMAT.format(
             citekey=citekey,
-            title=item['title'][0],
-            author=authors,
-            year=str(year),
-            journal=item['container-title'][0]
-        ).splitlines()
+            title=condense_whitespace(item['title'][0]),
+            author=condense_whitespace(authors),
+            year=condense_whitespace(year),
+            journal=condense_whitespace(item['container-title'][0])
+        )
+        txt = txt.splitlines()
         return (citekey, txt, item)
 
     def _query_crossref(self, query):
@@ -668,7 +673,11 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         elif item['type'] == 'book-chapter':
             bibtex_entry['booktitle'] = item.get('container-title', [''])[0]
 
-        bibtex_entry = {k: v for k, v in bibtex_entry.items() if v}
+        bibtex_entry = {
+            k: condense_whitespace(v)
+            for k, v in bibtex_entry.items()
+            if v
+        }
 
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
 
