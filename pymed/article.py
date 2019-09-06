@@ -23,6 +23,9 @@ class PubMedArticle(object):
         "results",
         "copyrights",
         "doi",
+        "volume",
+        "issue",
+        "pages",
         "xml",
     )
 
@@ -81,6 +84,25 @@ class PubMedArticle(object):
         path = ".//ArticleId[@IdType='doi']"
         return getContent(element=xml_element, path=path)
 
+    def _extractVolume(self, xml_element) -> str:
+        path = ".//Volume"
+        return getContent(element=xml_element, path=path)
+
+    def _extractIssue(self, xml_element) -> str:
+        path = ".//Issue"
+        return getContent(element=xml_element, path=path)
+
+    def _extractPages(self, xml_element) -> str:
+        medlinepgn = getContent(
+            element=xml_element,
+            path=".//Pagination/MedlinePgn"
+        )
+        pii = getContent(
+            element=xml_element,
+            path=".//ELocationID[@EIdType='pii']"
+        )
+        return medlinepgn or pii
+
     def _extractPublicationDate(self, xml_element):
         # Get the publication date
         try:
@@ -127,6 +149,9 @@ class PubMedArticle(object):
         self.results = self._extractResults(xml_element)
         self.copyrights = self._extractCopyrights(xml_element)
         self.doi = self._extractDoi(xml_element)
+        self.volume = self._extractVolume(xml_element)
+        self.issue = self._extractIssue(xml_element)
+        self.pages = self._extractPages(xml_element)
         self.publication_date = self._extractPublicationDate(xml_element)
         self.authors = self._extractAuthors(xml_element)
         self.xml = xml_element
