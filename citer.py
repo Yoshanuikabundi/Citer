@@ -36,8 +36,6 @@ try:
     PUBMED_AVAILABLE = True
 except Exception:
     PUBMED_AVAILABLE = False
-# Can make this available when its ready
-PUBMED_AVAILABLE = False
 
 try:
     from habanero import Crossref
@@ -192,7 +190,11 @@ class Paper:
 
 def append_bibfile(bib_path, entry):
     bibtex_db = BibTexParser('')
-    bibtex_db.records.append(entry)
+    bibtex_db.records.append({
+        k: condense_whitespace(v)
+        for k, v in entry.items()
+        if v
+    })
     bibtex_str = to_bibtex(bibtex_db)
 
     # append to the output file
@@ -505,7 +507,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             citekey=citekey,
             title=condense_whitespace(item['title'][0]),
             author=condense_whitespace(authors),
-            year=condense_whitespace(year),
+            year=str(year),
             journal=condense_whitespace(item['container-title'][0])
         )
         txt = txt.splitlines()
@@ -553,8 +555,8 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         year = pubmedarticle.publication_date.year
 
         citekey = (
-            ''.join(str(pubmedarticle.author[0].get('lastname', '')).split())
-            + year
+            ''.join(str(pubmedarticle.authors[0].get('lastname', '')).split())
+            + str(year)
         )
         citekey = unicodedata.normalize('NFKD', citekey)
         citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
@@ -564,29 +566,29 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         citekey = citekey + citekey_suffix
 
         authors = '; '.join([
-            a.get('lastname', '')
+            (a.get('lastname') or '')
             + ', '
-            + a.get('initials')
+            + (a.get('initials') or '')
             + ' '
-            + a.get('firstname', '')
-            for a in pubmedarticle.author
+            + (a.get('firstname') or '')
+            for a in pubmedarticle.authors
         ])
 
         txt = QUICKVIEW_FORMAT.format(
             citekey=citekey,
-            title=pubmedarticle.title,
-            author=authors,
-            year=year,
-            journal=pubmedarticle.journal
+            title=condense_whitespace(pubmedarticle.title),
+            author=condense_whitespace(authors),
+            year=str(year),
+            journal=condense_whitespace(pubmedarticle.journal)
         ).splitlines()
 
         return (citekey, txt)
 
     def _query_pubmed(self, query):
-        self.current_results_pmart = _PUBMED.query(
+        self.current_results_pmart = list(_PUBMED.query(
             query,
             max_results=20
-        )
+        ))
 
         docs = documents()
         self.citekeys = set([doc.get('id') for doc in docs])
@@ -601,7 +603,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         self.view.window().show_quick_panel(
             self.current_results_txt,
-            self._paste_crossref
+            self._paste_pubmed
         )
 
         self.citekeys = None
@@ -673,12 +675,6 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         elif item['type'] == 'book-chapter':
             bibtex_entry['booktitle'] = item.get('container-title', [''])[0]
 
-        bibtex_entry = {
-            k: condense_whitespace(v)
-            for k, v in bibtex_entry.items()
-            if v
-        }
-
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
 
         return self._paste(index)
@@ -690,18 +686,19 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             'type': 'article',
 
             'title': pmart.title,
-            'volume': '',
-            'number': '',
-            'pages': '',
+            'volume': pmart.volume,
+            'number': pmart.issue,
+            'pages': pmart.pages,
+            'keywords': pmart.keywords,
             'year': str(pmart.publication_date.year),
             'journal': pmart.journal,
             'doi': pmart.doi,
             'author': ' and '.join([
-                a.get('lastname', '')
+                (a.get('lastname') or '')
                 + ', '
-                + a.get('initials', '')
+                + (a.get('initials') or '')
                 + ' '
-                + a.get('firstname', '')
+                + (a.get('firstname') or '')
                 for a in pmart.authors
             ])
         }
