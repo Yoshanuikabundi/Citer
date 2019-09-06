@@ -11,6 +11,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from imp import reload
+import dateutil.parser
 
 # ST3 loads each package as a module, so it needs an extra prefix
 
@@ -33,6 +34,8 @@ from bibtexparser.bwriter import to_bibtex  # noqa: E402
 
 try:
     from pymed import PubMed
+    from pymed.book import PubMedBookArticle
+    from pymed.article import  PubMedArticle
     PUBMED_AVAILABLE = True
 except Exception:
     PUBMED_AVAILABLE = False
@@ -552,7 +555,10 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
         self.citekeys = None
 
     def _proc_pmart(self, pubmedarticle):
-        year = pubmedarticle.publication_date.year
+        pubdate = pubmedarticle.publication_date
+        if isinstance(pubdate, str):
+            pubdate = dateutil.parser.parse(pubdate)
+        year = pubdate.year
 
         citekey = (
             ''.join(str(pubmedarticle.authors[0].get('lastname', '')).split())
@@ -574,12 +580,17 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             for a in pubmedarticle.authors
         ])
 
+        try:
+            journal = pubmedarticle.journal
+        except AttributeError:
+            journal = pubmedarticle.collection_title
+
         txt = QUICKVIEW_FORMAT.format(
             citekey=citekey,
             title=condense_whitespace(pubmedarticle.title),
             author=condense_whitespace(authors),
             year=str(year),
-            journal=condense_whitespace(pubmedarticle.journal)
+            journal=condense_whitespace(journal)
         ).splitlines()
 
         return (citekey, txt)
@@ -681,17 +692,17 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     def _paste_pubmed(self, index):
         pmart = self.current_results_pmart[index]
+
+        pubdate = pmart.publication_date
+        if isinstance(pubdate, str):
+            pubdate = dateutil.parser.parse(pubdate)
+
         bibtex_entry = {
             'id': self.current_results_keys[index],
             'type': 'article',
 
             'title': pmart.title,
-            'volume': pmart.volume,
-            'number': pmart.issue,
-            'pages': pmart.pages,
-            'keywords': pmart.keywords,
-            'year': str(pmart.publication_date.year),
-            'journal': pmart.journal,
+            'year': str(pubdate.year),
             'doi': pmart.doi,
             'author': ' and '.join([
                 (a.get('lastname') or '')
@@ -702,6 +713,16 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
                 for a in pmart.authors
             ])
         }
+        if isinstance(pmart, PubMedArticle):
+            bibtex_entry['volume'] = pmart.volume
+            bibtex_entry['number'] = pmart.issue
+            bibtex_entry['pages'] = pmart.pages
+            bibtex_entry['journal'] = pmart.journal
+            bibtex_entry['keywords'] = pmart.keywords
+        elif isinstance(pmart, PubMedBookArticle):
+            bibtex_entry['type'] = 'incollection'
+            bibtex_entry['booktitle'] = pmart.collection_title
+
 
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
         return self._paste(index)
