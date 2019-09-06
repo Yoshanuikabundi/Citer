@@ -22,6 +22,8 @@ class PubMedBookArticle(object):
         "sections",
         "publisher",
         "publisher_location",
+        "collection_title",
+        "xml"
     )
 
     def __init__(self, xml_element=None, *args, **kwargs):
@@ -81,6 +83,10 @@ class PubMedBookArticle(object):
         path = ".//Publisher/PublisherLocation"
         return getContent(element=xml_element, path=path)
 
+    def _extractCollectionTitle(self, xml_element) -> str:
+        path = ".//CollectionTitle"
+        return getContent(element=xml_element, path=path)
+
     def _extractAuthors(self, xml_element) -> list:
         return [
             {
@@ -119,6 +125,8 @@ class PubMedBookArticle(object):
         self.publisher = self._extractPublisher(xml_element)
         self.publisher_location = self._extractPublisherLocation(xml_element)
         self.sections = self._extractSections(xml_element)
+        self.collection_title = self._extractCollectionTitle(xml_element)
+        self.xml = xml_element
 
     def toDict(self) -> dict:
         """ Helper method to convert the parsed information to a Python dict.
