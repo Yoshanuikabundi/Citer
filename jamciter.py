@@ -15,8 +15,8 @@ import dateutil.parser
 
 # ST3 loads each package as a module, so it needs an extra prefix
 
-reloader_name = 'citer.reloader'
-reloader_name = 'Citer.' + reloader_name
+reloader_name = 'jamciter.reloader'
+reloader_name = 'JAMCiter.' + reloader_name
 
 
 # Make sure all dependencies are reloaded on upgrade
@@ -292,7 +292,7 @@ def refresh_settings():
         else:
             return settings.get(setting, default)
 
-    settings = sublime.load_settings('Citer.sublime-settings')
+    settings = sublime.load_settings('JAMCiter.sublime-settings')
     BIBFILE_PATH = get_settings('bibtex_file_path', None, is_path=True)
     CITATION_FORMAT = get_settings('citation_format', "@%s")
     COMPLETIONS_SCOPES = get_settings('completions_scopes', ['text.html.markdown'])  # noqa: E501
@@ -726,69 +726,6 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
         return self._paste(index)
-
-
-class CiterShowKeysCommand(sublime_plugin.TextCommand):
-
-    """
-    """
-    current_results_list = []
-
-    def run(self, edit):
-        refresh_settings()
-        ctk = citekeys_menu()
-        if len(ctk) > 0:
-            self.current_results_list = ctk
-            self.view.window().show_quick_panel(self.current_results_list,
-                                                self._paste)
-
-    def is_enabled(self):
-        """Determines if the command is enabled
-        """
-        return True
-
-    def _paste(self, item):
-        """Paste item into buffer
-        """
-        if item == -1:
-            return
-        ent = self.current_results_list[item][0]
-        ent = ent.split(' ')[0]
-        citekey = CITATION_FORMAT % ent
-        if PANDOC_FIX:
-            self.view.run_command('insert', {'characters': citekey})
-            self.view.run_command('citer_combine_citations')
-        else:
-            self.view.run_command('insert', {'characters': citekey})
-
-
-class CiterGetTitleCommand(sublime_plugin.TextCommand):
-
-    """
-    """
-    current_results_list = []
-
-    def run(self, edit):
-        refresh_settings()
-        ctk = citekeys_menu()
-        if len(ctk) > 0:
-            self.current_results_list = ctk
-            self.view.window().show_quick_panel(self.current_results_list,
-                                                self._paste)
-
-    def is_enabled(self):
-        """Determines if the command is enabled
-        """
-        return True
-
-    def _paste(self, item):
-        """Paste item into buffer
-        """
-        if item == -1:
-            return
-        ent = self.current_results_list[item][0]
-        title = ent.split(' - ', 1)[1]
-        self.view.run_command('insert', {'characters': title})
 
 
 class CiterCompleteCitationEventListener(sublime_plugin.EventListener):

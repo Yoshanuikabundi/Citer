@@ -1,0 +1,14 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+    "settings":
+    {
+        "git_markdown_liaison": {
+            "active": true,
+        },
+    }
+}

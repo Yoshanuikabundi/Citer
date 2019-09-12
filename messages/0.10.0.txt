@@ -1,0 +1,6 @@
+JAMCiter 0.10.0
+===========
+
+- Now reads from new settings files to avoid back-compatibility issues with Citer
+- Supports searching PubMed as well as CrossRef
+- Removed some old commands that no longer worked

@@ -1,0 +1,18 @@
+[
+  { "caption": "Preferences: JAMCiter",
+    "command": "edit_settings",
+    "args": {
+      "base_file": "${packages}/JAMCiter/JAMCiter.sublime-settings",
+      "default": "{\n\t$0\n}\n"
+    }
+  },
+  { "caption": "JAMCiter: Open Readme",
+    "command": "open_file",
+    "args": {
+      "file": "${packages}/JAMCiter/README.md"
+    }
+  },
+  { "caption": "Citer: Search",
+    "command": "citer_search"
+  },
+]
