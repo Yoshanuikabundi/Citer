@@ -44,29 +44,25 @@ Optionally, you can define:
 
 See below for example project configuration
 
-
 ```js
 {
-    //REQUIRED:
+    "settings":
+    {
+        "citer":
+        {
+            //REQUIRED:
 
-    "bibtex_file_path": "example/path/to/file.bib",
-    // You can also specify a list
-    //"bibtex_file_path": ["example/path/to/file.bib", "example/path/to/fileTwo.bib"],
-
-    //OPTIONAL:
-
-    //By default Citer Search looks for your keyword in the 
-    //author, title, year, and Citekey (id) fields
-    "search_fields": ["author", "title", "year", "id"] ,
-    //Default format is @Citekey
-    "citation_format": "@%s",
-    //list of scopes. Could be top level "text" or "source", or limit to
-    // e.g "text.html.markdown"
-    "completions_scopes": ["text"],
-    "enable_completions": true,
-    //Customise the quickview of you library, using python format syntax
-    "quickview_format": "{citekey} - {title}",
-    "auto_merge_citations": false
+            // "bibtex_file_path": "example/path/to/file.bib",
+            // You can also specify a list
+            "bibtex_file_path": 
+            [
+                "example/path/to/file.bib", 
+                "example/path/to/fileTwo.bib"
+            ],
+            "output_bib_file_path": "example/path/to/file.bib",
+            //Etc. All the same settings as above can go here.
+        },
+    },
 }
 ```
 
