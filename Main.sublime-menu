@@ -1,35 +1,30 @@
 [
-    {
-        "caption": "Preferences",
-        "mnemonic": "n",
-        "id": "preferences",
-        "children":
-        [
-            {
-                "caption": "Package Settings",
-                "mnemonic": "P",
-                "id": "package-settings",
-                "children":
-                [
-                    {
-                        "caption": "JAMCiter",
-                        "children":
-                        [
-                            {
-                                "command": "open_file",
-                                "args": {"file": "${packages}/JAMCiter/Citer.sublime-settings"},
-                                "caption": "Citer Settings – Default"
-                            },
-                            {
-                                "command": "open_file",
-                                "args": {"file": "${packages}/User/Citer.sublime-settings"},
-                                "caption": "Citer Settings – User"
-                            },
-
-                        ]
-                    }
-                ]
-            }
+  { "id": "preferences",
+    "children": [
+      { "caption": "Package Settings",
+        "mnemonic": "P",
+        "id": "package-settings",
+        "children": [
+          { "caption": "JAMCiter",
+            "children": [
+              { "caption": "README",
+                "command": "open_file",
+                "args": {
+                  "file": "${packages}/JAMCiter/README.md"
+                }
+              },
+              { "caption": "-" },
+              { "caption": "Settings",
+                "command": "edit_settings",
+                "args": {
+                  "base_file": "${packages}/JAMCiter/JAMCiter.sublime-settings",
+                  "default": "{\n\t$0\n}\n"
+                }
+              },
+            ]
+          }
         ]
-    }
+      }
+    ]
+  }
 ]

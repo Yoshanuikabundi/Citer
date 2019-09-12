@@ -63,6 +63,7 @@ CITATION_RE = None
 CROSSREF_MAILTO = None
 OUTPUT_BIBFILE_PATH = None
 CROSSREF_LIMIT = None
+PUBMED_LIMIT = None
 CROSSREF_DATE_FIELD = None
 
 # Internal Cache globals
@@ -271,6 +272,7 @@ def refresh_settings():
     global CROSSREF_MAILTO
     global OUTPUT_BIBFILE_PATH
     global CROSSREF_LIMIT
+    global PUBMED_LIMIT
     global CROSSREF_DATE_FIELD
     global _CROSSREF
 
@@ -309,6 +311,7 @@ def refresh_settings():
     CROSSREF_MAILTO = get_settings('crossref_mailto', None)
     OUTPUT_BIBFILE_PATH = get_settings('output_bib_file_path', None, is_path=True)  # noqa: E501
     CROSSREF_LIMIT = get_settings('crossref_limit', 20)
+    PUBMED_LIMIT = get_settings('pubmed_limit', 20)
     CROSSREF_DATE_FIELD = get_settings('crossref_date_field', 'issued')
 
     if len(OUTPUT_BIBFILE_PATH) > 1:
@@ -598,7 +601,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
     def _query_pubmed(self, query):
         self.current_results_pmart = list(_PUBMED.query(
             query,
-            max_results=20
+            max_results=PUBMED_LIMIT
         ))
 
         docs = documents()

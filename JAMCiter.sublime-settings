@@ -1,6 +1,8 @@
 {
     //REQUIRED (set in project settings):
     // "bibtex_file_path": "",
+    // For crossref/pubmed search to work, specify this too:
+    // "output_bib_file_path": "",
     //OPTIONAL:
     //By default Citer Search looks for your keyword in the
     //author, title, year, and Citekey (id) fields
@@ -18,4 +20,6 @@
     // CrossRef put you on the polite users list and you get your citations
     // faster.
     // "crossref_mailto": "user@example.com"
+    "crossref_limit": 20,
+    "pubmed_limit": 20,
 }

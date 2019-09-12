@@ -12,19 +12,37 @@ JAMCiter also uses the [bibtexparser](https://github.com/sciunto-org/python-bibt
 
 ## Configuration
 
-You must specify the location of your BibTeX file or files in the `Citer-sublime-settings` preferences file. Multiple files can be added as a list.
+Settings can be configured either in the `JAMCiter.sublime-settings` preferences file, or in your project file. You must specify the location of your BibTeX file or files:
 
-Optionally you can define 
-- `search_fields` the BibTeX fields to search in when using Citer: Search
-- `citation_format` the citation format
-- `completions_scopes` the list of scopes to limit the operation of the plugin (by default, Citer will only suggest citations within plain text scopes and is disabled in source code)
-- `enable_completions` enable/disable citation completions (when you hit @)
-- `quickview_format` customise the format when listing library entries in the quickview panel (e.g. with the Citer: Show All command). Place variables between `{}` braces. Available variables are `citekey`, `title`, `author`, `year`, `journal`. Use the newline character (`\n`) to split content over multiple lines.
-- `auto_merge_citations` Whether to automatically merge citations that are inserted next to each other. `[@Fred2000][@Mary2001]` becomes `[@Fred2000; @Mary2001]`. Equivalent to running `Citer: Combine adjacent citations` on every insert
-- `use_search_for_completions` Completions will open the Citer: Search dialog rather than just provide a list of keys.
-- `citation_regex` The regex used to attempt a completion when `use_search_for_completions` is on.
+ - `bibtex_file_path`: Location of the BibTeX files to search and insert with JAMCiter. Multiple files can be added as a list, and all will be searched.
 
-See below for example (default) configuration
+Optionally, you can define: 
+
+- `search_fields`: the BibTeX fields to search in when using Citer: Search
+
+- `citation_format`: the citation format
+
+- `completions_scopes`: the list of scopes to limit the operation of the plugin (by default, Citer will only suggest citations within plain text scopes and is disabled in source code)
+
+- `enable_completions`: enable/disable citation completions (when you hit @)
+
+- `quickview_format`: customise the format when listing library entries in the quickview panel (e.g. with the Citer: Show All command). Place variables between `{}` braces. Available variables are `citekey`, `title`, `author`, `year`, `journal`. Use the newline character (`\n`) to split content over multiple lines.
+
+- `auto_merge_citations`: Whether to automatically merge citations that are inserted next to each other. `[@Fred2000][@Mary2001]` becomes `[@Fred2000; @Mary2001]`. Equivalent to running `Citer: Combine adjacent citations` on every insert
+
+- `use_search_for_completions`: Completions will open the Citer: Search dialog rather than just provide a list of keys.
+
+- `citation_regex`: The regex used to attempt a completion when `use_search_for_completions` is on.
+
+- `output_bib_file_path`: Bib file to write to when inserting a reference from CrossRef or PubMed. Should be one of the files specified in the `bibtex_file_path` option.
+
+- `crossref_mailto`: CrossRef asks users to submit their email addresses for access to their public API. If the CrossRef search is slow, try putting your email address in here.
+
+- `crossref_limit` and `pubmed_limit`: The number of responses to request from CrossRef or PubMed respectively. Larger values may take longer to search.
+
+- `crossref_date_field`: CrossRef doesn't have a totally reliable date field. By default, the `issued` field is used, but you can configure it here.
+
+See below for example project configuration
 
 
 ```js
