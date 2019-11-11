@@ -278,7 +278,7 @@ def refresh_settings():
 
     def get_settings(setting, default, is_path=False):
         project_data = sublime.active_window().project_data()
-        project_citer_settings = project_data['settings']['citer']
+        project_citer_settings = project_data['settings'].get('citer', {})
         project_file = Path(sublime.active_window().project_file_name())
         project_folder = project_file.parent
         if project_data and setting in project_citer_settings:
@@ -314,14 +314,15 @@ def refresh_settings():
     PUBMED_LIMIT = get_settings('pubmed_limit', 20)
     CROSSREF_DATE_FIELD = get_settings('crossref_date_field', 'issued')
 
-    if len(OUTPUT_BIBFILE_PATH) > 1:
-        raise ValueError("Configure only one output_bib_file_path")
-    OUTPUT_BIBFILE_PATH = OUTPUT_BIBFILE_PATH[0]
+    if OUTPUT_BIBFILE_PATH:
+        if len(OUTPUT_BIBFILE_PATH) > 1:
+            raise ValueError("Configure only one output_bib_file_path")
+        OUTPUT_BIBFILE_PATH = OUTPUT_BIBFILE_PATH[0]
 
-    if OUTPUT_BIBFILE_PATH not in BIBFILE_PATH:
-        raise ValueError(
-            "output_bib_file_path should be one of the input files"
-        )
+        if BIBFILE_PATH and OUTPUT_BIBFILE_PATH not in BIBFILE_PATH:
+            raise ValueError(
+                "output_bib_file_path should be one of the input files"
+            )
 
     if HABANERO_AVAILABLE:
         _CROSSREF = Crossref(mailto=CROSSREF_MAILTO)
@@ -622,6 +623,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         self.citekeys = None
 
+
     def search_crossref(self):
         self.view.window().show_input_panel(
             "Search CrossRef",
@@ -736,6 +738,7 @@ class CiterCompleteCitationEventListener(sublime_plugin.EventListener):
     """docstring for CiterCompleteCitationEventListener"""
 
     def on_query_completions(self, view, prefix, loc):
+        refresh_settings()
         in_scope = any(
             view.match_selector(loc[0], scope)
             for scope in COMPLETIONS_SCOPES
