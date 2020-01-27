@@ -817,17 +817,19 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             citekey_suffix = chr(ord(citekey_suffix) + 1)
         citekey = citekey + citekey_suffix
 
+        doi = article["doi"]
+
         bibtex_entry = {
             'id': citekey,
-            'type': 'article',
+            'type': 'unpublished',
 
             'title': article["title"],
             'year': str(pubdate.year),
-            'doi': article["doi"],
+            'doi': doi,
             'author': ' and '.join([
                 author.get('full_name') for author in article["authors"]
             ]),
-            'journal': 'ChemRxiv',
+            'note': 'ChemRxiv. Preprint. \\url{{https://doi.org/{}}}'.format(doi),
             'keywords': article["tags"]
         }
 
