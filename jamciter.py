@@ -46,6 +46,13 @@ try:
 except Exception:
     HABANERO_AVAILABLE = False
 
+try:
+    import requests
+    import json
+    CHEMRXIV_AVAILABLE = True
+except Exception:
+    CHEMRXIV_AVAILABLE = False
+
 # settings cache globals
 BIBFILE_PATH = None
 CITATION_FORMAT = None
@@ -65,6 +72,7 @@ OUTPUT_BIBFILE_PATH = None
 CROSSREF_LIMIT = None
 PUBMED_LIMIT = None
 CROSSREF_DATE_FIELD = None
+CHEMRXIV_TOKEN = None
 
 # Internal Cache globals
 _PAPERS = {}
@@ -313,6 +321,7 @@ def refresh_settings():
     CROSSREF_LIMIT = get_settings('crossref_limit', 20)
     PUBMED_LIMIT = get_settings('pubmed_limit', 20)
     CROSSREF_DATE_FIELD = get_settings('crossref_date_field', 'issued')
+    CHEMRXIV_TOKEN = get_settings('chemrxiv_token', None)
 
     if OUTPUT_BIBFILE_PATH:
         if len(OUTPUT_BIBFILE_PATH) > 1:
@@ -326,6 +335,9 @@ def refresh_settings():
 
     if HABANERO_AVAILABLE:
         _CROSSREF = Crossref(mailto=CROSSREF_MAILTO)
+
+    if CHEMRXIV_TOKEN is None:
+        CHEMRXIV_AVAILABLE = False
 
 
 def refresh_caches():
@@ -449,6 +461,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             ])
             self.current_results_keys.append("&PubMed")
             self.pubmed_index = selected_index
+            selected_index += 1
+        if CHEMRXIV_AVAILABLE:
+            self.current_results_txt.append([
+                "Search ChemRxiv",
+                "Insert a reference from the ChemRxiv database"
+            ])
+            self.current_results_keys.append("&ChemRxiv")
+            self.chemrxiv_index = selected_index
             selected_index += 1
 
         # Generate all the results to search
@@ -599,6 +619,23 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         return (citekey, txt)
 
+    def _proc_chemrxiv(self, article):
+        pubdate = article["published_date"]
+        pubdate = dateutil.parser.parse(pubdate)
+        year = pubdate.year
+
+        citekey = article["id"]
+
+        txt = QUICKVIEW_FORMAT.format(
+            citekey=citekey,
+            title=condense_whitespace(article["title"]),
+            author='',
+            year=str(year),
+            journal='ChemRxiv'
+        ).splitlines()
+
+        return (citekey, txt)
+
     def _query_pubmed(self, query):
         self.current_results_pmart = list(_PUBMED.query(
             query,
@@ -623,21 +660,38 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
         self.citekeys = None
 
-
-    def search_crossref(self):
-        self.view.window().show_input_panel(
-            "Search CrossRef",
-            "",
-            on_done=self._query_crossref,
-            on_change=None,
-            on_cancel=None
+    def _query_chemrxiv(self, query):
+        r = requests.post(
+            "https://api.figshare.com/v2/articles/search",
+            data=json.dumps({
+                "item_type": 12, # Preprint
+                "search_for": query
+            })
         )
 
-    def search_pubmed(self):
+        r.raise_for_status()
+
+        current_results_chemrxiv = r.json()
+
+        if not current_results_chemrxiv:
+            sublime.status_message("ChemRxiv query gave no results")
+            return
+
+        self.current_results_keys, self.current_results_txt = map(list, zip(
+            *[self._proc_chemrxiv(a) for a in current_results_chemrxiv]
+        ))
+
+        self.view.window().show_quick_panel(
+            self.current_results_txt,
+            self._paste_chemrxiv
+        )
+
+
+    def search_external(self, dbname, queryfunc):
         self.view.window().show_input_panel(
-            "Search PubMed",
+            "Search {dbname}".format(**locals()),
             "",
-            on_done=self._query_pubmed,
+            on_done=queryfunc,
             on_change=None,
             on_cancel=None
         )
@@ -658,9 +712,11 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
 
     def _paste_bibtex(self, index):
         if HABANERO_AVAILABLE and index == self.habanero_index:
-            return self.search_crossref()
+            return self.search_external("CrossRef", self._query_crossref)
         if PUBMED_AVAILABLE and index == self.pubmed_index:
-            return self.search_pubmed()
+            return self.search_external("PubMed", self._query_pubmed)
+        if CHEMRXIV_AVAILABLE and index == self.chemrxiv_index:
+            return self.search_external("ChemRxiv", self._query_chemrxiv)
 
         return self._paste(index)
 
@@ -729,6 +785,53 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             bibtex_entry['booktitle'] = pmart.collection_title
 
 
+        append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
+        return self._paste(index)
+
+    def _paste_chemrxiv(self, index):
+        id = self.current_results_keys[index]
+
+        r = requests.get(
+            "https://api.figshare.com/v2/articles/{id}".format(**locals()),
+        )
+
+        r.raise_for_status()
+
+        article = r.json()
+
+        pubdate = article["published_date"]
+        pubdate = dateutil.parser.parse(pubdate)
+        year = pubdate.year
+
+        citekey = (
+            ''.join(str(article["authors"][0].get('full_name', '')).split())
+            + str(year)
+        )
+        citekey = unicodedata.normalize('NFKD', citekey)
+        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
+
+        docs = documents()
+        citekeys = set([doc.get('id') for doc in docs])
+        citekey_suffix = 'a' if citekey in citekeys else ''
+        while citekey + citekey_suffix in citekeys:
+            citekey_suffix = chr(ord(citekey_suffix) + 1)
+        citekey = citekey + citekey_suffix
+
+        bibtex_entry = {
+            'id': citekey,
+            'type': 'article',
+
+            'title': article["title"],
+            'year': str(pubdate.year),
+            'doi': article["doi"],
+            'author': ' and '.join([
+                author.get('full_name') for author in article["authors"]
+            ]),
+            'journal': 'ChemRxiv',
+            'keywords': article["tags"]
+        }
+
+        self.current_results_keys[index] = citekey
         append_bibfile(OUTPUT_BIBFILE_PATH, bibtex_entry)
         return self._paste(index)
 
