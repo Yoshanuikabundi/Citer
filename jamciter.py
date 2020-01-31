@@ -114,6 +114,13 @@ def load_yamlbib_path(view):
 def condense_whitespace(s):
     return ' '.join(str(s).split())
 
+def escape_bibtex(s):
+    return s.replace('&', r'\&')
+
+def fmt_bibtex(s):
+    s = escape_bibtex(s)
+    s = condense_whitespace(s)
+    return s
 
 def strip_latex(s):
     if s is None:
@@ -202,8 +209,9 @@ class Paper:
 
 def append_bibfile(bib_path, entry):
     bibtex_db = BibTexParser('')
+    print(entry)
     bibtex_db.records.append({
-        k: condense_whitespace(v)
+        k: fmt_bibtex(v)
         for k, v in entry.items()
         if v
     })
@@ -518,7 +526,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             + str(year)
         )
         citekey = unicodedata.normalize('NFKD', citekey)
-        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
+        citekey = ''.join(
+            c
+            for c in citekey
+            if c in
+                'abcdefghijklmnopqrstuvwxyz'
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                '0123456789-_'
+        )
         citekey_suffix = 'a' if citekey in self.citekeys else ''
         while citekey + citekey_suffix in self.citekeys:
             citekey_suffix = chr(ord(citekey_suffix) + 1)
@@ -589,7 +604,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             + str(year)
         )
         citekey = unicodedata.normalize('NFKD', citekey)
-        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
+        citekey = ''.join(
+            c
+            for c in citekey
+            if c in
+                'abcdefghijklmnopqrstuvwxyz'
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                '0123456789-_'
+        )
         citekey_suffix = 'a' if citekey in self.citekeys else ''
         while citekey + citekey_suffix in self.citekeys:
             citekey_suffix = chr(ord(citekey_suffix) + 1)
@@ -734,7 +756,10 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             'pages': item.get('page', ''),
             'year': str(date_issued['date-parts'][0][0]),
             'doi': item.get('DOI', ''),
-            'editor': item.get('editor', ''),
+            'editor': ' and '.join([
+                e.get('family', '') + ', ' + e.get('given', '')
+                for e in item.get('editor', [])
+            ]),
             'publisher': item.get('publisher', ''),
             'author': ' and '.join([
                 a.get('family', '') + ', ' + a.get('given', '')
@@ -808,7 +833,14 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             + str(year)
         )
         citekey = unicodedata.normalize('NFKD', citekey)
-        citekey = str(citekey.encode('ascii', 'ignore'), 'ascii')
+        citekey = ''.join(
+            c
+            for c in citekey
+            if c in
+                'abcdefghijklmnopqrstuvwxyz'
+                'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                '0123456789-_'
+        )
 
         docs = documents()
         citekeys = set([doc.get('id') for doc in docs])
