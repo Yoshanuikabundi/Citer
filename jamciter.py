@@ -115,7 +115,7 @@ def condense_whitespace(s):
     return ' '.join(str(s).split())
 
 def escape_bibtex(s):
-    return s.replace('&', r'\&')
+    return s.replace('&', r'\&').replace('_', r'\_')
 
 def fmt_bibtex(s):
     s = escape_bibtex(s)
