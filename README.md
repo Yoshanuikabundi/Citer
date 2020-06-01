@@ -1,6 +1,7 @@
 # Citations from BibTeX for Sublime Text
 
-This [Sublime Text 3](https://www.sublimetext.com/3) plugin provides citation search and Tab-completion for citations stored in a BibTeX file, as well as searching CrossRef and PubMed for citations from within the editor. Configure the file path and email address and you are good to go!
+This [Sublime Text 3](https://www.sublimetext.com/3) plugin provides citation search and Tab-completion for citations stored in a BibTeX file, as well as searching ChemRxiv, CrossRef and PubMed for citations from within the editor.
+Configure the file path and email address and you are good to go!
 
 The default set up is optimized to work with [MathademicMarkdown](https://github.com/yoshanuikabundi/MathademicMarkdown).
 
@@ -12,11 +13,13 @@ JAMCiter also uses the [bibtexparser](https://github.com/sciunto-org/python-bibt
 
 ## Configuration
 
-Settings can be configured either in the `JAMCiter.sublime-settings` preferences file, or in your project file. You must specify the location of your BibTeX file or files:
+Settings can be configured either in the `JAMCiter.sublime-settings` preferences file, or in your project file.
+You must specify the location of your BibTeX file or files:
 
- - `bibtex_file_path`: Location of the BibTeX files to search and insert with JAMCiter. Multiple files can be added as a list, and all will be searched.
+ - `bibtex_file_path`: Location of the BibTeX files to search and insert with JAMCiter.
+Multiple files can be added as a list, and all will be searched.
 
-Optionally, you can define: 
+Optionally, you can define:
 
 - `search_fields`: the BibTeX fields to search in when using Citer: Search
 
@@ -26,21 +29,29 @@ Optionally, you can define:
 
 - `enable_completions`: enable/disable citation completions (when you hit @)
 
-- `quickview_format`: customise the format when listing library entries in the quickview panel (e.g. with the Citer: Show All command). Place variables between `{}` braces. Available variables are `citekey`, `title`, `author`, `year`, `journal`. Use the newline character (`\n`) to split content over multiple lines.
+- `quickview_format`: customise the format when listing library entries in the quickview panel (e.g. with the Citer: Show All command).
+Place variables between `{}` braces.
+Available variables are `citekey`, `title`, `author`, `year`, `journal`.
+Use the newline character (`\n`) to split content over multiple lines.
 
-- `auto_merge_citations`: Whether to automatically merge citations that are inserted next to each other. `[@Fred2000][@Mary2001]` becomes `[@Fred2000; @Mary2001]`. Equivalent to running `Citer: Combine adjacent citations` on every insert
+- `auto_merge_citations`: Whether to automatically merge citations that are inserted next to each other. `[@Fred2000][@Mary2001]` becomes `[@Fred2000; @Mary2001]`.
+Equivalent to running `Citer: Combine adjacent citations` on every insert
 
 - `use_search_for_completions`: Completions will open the Citer: Search dialog rather than just provide a list of keys.
 
 - `citation_regex`: The regex used to attempt a completion when `use_search_for_completions` is on.
 
-- `output_bib_file_path`: Bib file to write to when inserting a reference from CrossRef or PubMed. Should be one of the files specified in the `bibtex_file_path` option.
+- `output_bib_file_path`: Bib file to write to when inserting a reference from CrossRef or PubMed.
+Should be one of the files specified in the `bibtex_file_path` option.
 
-- `crossref_mailto`: CrossRef asks users to submit their email addresses for access to their public API. If the CrossRef search is slow, try putting your email address in here.
+- `crossref_mailto`: CrossRef asks users to submit their email addresses for access to their public API.
+If the CrossRef search is slow, try putting your email address in here.
 
-- `crossref_limit` and `pubmed_limit`: The number of responses to request from CrossRef or PubMed respectively. Larger values may take longer to search.
+- `crossref_limit` and `pubmed_limit`: The number of responses to request from CrossRef or PubMed respectively.
+Larger values may take longer to search.
 
-- `crossref_date_field`: CrossRef doesn't have a totally reliable date field. By default, the `issued` field is used, but you can configure it here.
+- `crossref_date_field`: CrossRef doesn't have a totally reliable date field.
+By default, the `issued` field is used, but you can configure it here.
 
 See below for example project configuration
 
@@ -54,9 +65,9 @@ See below for example project configuration
 
             // "bibtex_file_path": "example/path/to/file.bib",
             // You can also specify a list
-            "bibtex_file_path": 
+            "bibtex_file_path":
             [
-                "example/path/to/file.bib", 
+                "example/path/to/file.bib",
                 "example/path/to/fileTwo.bib"
             ],
             "output_bib_file_path": "example/path/to/file.bib",
@@ -69,7 +80,8 @@ See below for example project configuration
 
 ## Commands
 
-**Citer: Search** - enter a search term. All results where the term is found in the author, title, citekey, or year fields will be shown (the searched fields are configurable)
+**Citer: Search** - enter a search term.
+All results where the term is found in the author, title, citekey, or year fields will be shown (the searched fields are configurable)
 
 **Citer: Combine adjacent citations** - Combines neighbouring citations i.e. `[@Fred2000][@Mary2001]` becomes `[@Fred2000; @Mary2001]`
 
@@ -80,4 +92,5 @@ Citer provides autocompletions for your citekeys, these are enabled by default a
 
 ## Compatibility
 
-Citer has been tested with BibTeX generated by [Mendeley](https://www.mendeley.com/), Jabref, and Zotero. It should work with any well-formed BibTeX file.
+Citer has been tested with BibTeX generated by [Mendeley](https://www.mendeley.com/), Jabref, and Zotero.
+It should work with any well-formed BibTeX file.

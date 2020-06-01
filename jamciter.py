@@ -804,7 +804,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
             bibtex_entry['number'] = pmart.issue
             bibtex_entry['pages'] = pmart.pages
             bibtex_entry['journal'] = pmart.journal
-            bibtex_entry['keywords'] = pmart.keywords
+            bibtex_entry['keywords'] = ','.join(pmart.keywords)
         elif isinstance(pmart, PubMedBookArticle):
             bibtex_entry['type'] = 'incollection'
             bibtex_entry['booktitle'] = pmart.collection_title
@@ -862,7 +862,7 @@ class CiterSearchCommand(sublime_plugin.TextCommand):
                 author.get('full_name') for author in article["authors"]
             ]),
             'note': 'ChemRxiv. Preprint. \\url{{https://doi.org/{}}}'.format(doi),
-            'keywords': article["tags"]
+            'keywords': ','.join(article["tags"])
         }
 
         self.current_results_keys[index] = citekey
